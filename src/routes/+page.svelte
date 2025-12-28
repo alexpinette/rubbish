@@ -6,9 +6,11 @@
 
 <div class="flex flex-col items-center justify-center mx-auto">
 	<!-- Top -->
-	<div class="py-5">
-		<h2 class="h2 py-2 text-center">Rubbish</h2>
-		<h3 class="h3">Based on the classic Balderdash board game</h3>
+	<div class="py-5 text-center">
+		<h2 class="h2 py-2">Rubbish</h2>
+		<p class="text-sm text-surface-600 dark:text-surface-400 italic mt-2">
+			Based on the classic Balderdash board game
+		</p>
 	</div>
 	<!-- Buttons -->
 	<div class="flex flex-col items-center justify-center space-y-5 p-10">
@@ -35,7 +37,7 @@
 		{/if}
 	</div>
 	<!-- Description -->
-	<p class="my-5">
+	<p class="my-5 text-center max-w-lg px-5 mx-auto">
 		The iconic party game of bluffing and trivia! Based on the classic Balderdash board game, 
 		guess or craft clever definitions for a mix of obscure words, people, and more! 
 		Perfect for 4-8 players seeking a fun, brain-teasing challenge!

@@ -6,13 +6,24 @@
 
 	import config from '$lib/config';
 	import { faCircleExclamation } from '@fortawesome/free-solid-svg-icons';
-	import { RangeSlider, SlideToggle } from '@skeletonlabs/skeleton';
+	import { RangeSlider, SlideToggle, getDrawerStore, Drawer } from '@skeletonlabs/skeleton';
 	import Fa from 'svelte-fa';
 	import Entry from '../../components/forms/Entry.svelte';
+	import Rules from '../../components/footer/pages/Rules.svelte';
+	import posthog from 'posthog-js';
+
 	let username = '';
 	let categories = config.categories;
 	let roundsChoice = config.rounds.min;
 	let aiChoice = config.ais.min;
+
+	const drawerStore = getDrawerStore();
+	const drawerSettings = { rounded: 'rounded-xl', position: 'bottom' };
+
+	function openRules() {
+		posthog.capture('help_page_opened', { page: 'Rules' });
+		drawerStore.open({ id: 'Rules', ...drawerSettings });
+	}
 
 	/** @param {string} text */
 	let textToId = (text) => text.toLowerCase().replace(/\s/g, '-');
@@ -23,7 +34,12 @@
 	<h1 class="h1 text-center">New Game</h1>
 	<span class="inline-flex small-gap gap-x-1 items-center justify-center w-full text-xs xs:text-lg">
 		<span class="text-lg"><Fa icon={faCircleExclamation} /></span>
-		<span>Familiarise yourself with the <span class="attention">rules</span> before you start!</span
+		<span
+			>Familiarise yourself with the <button
+				type="button"
+				class="attention cursor-pointer"
+				on:click={openRules}>rules</button
+			> before you start!</span
 		>
 	</span>
 	<Entry bind:username>
@@ -73,3 +89,9 @@
 		</div>
 	</Entry>
 </main>
+
+<Drawer>
+	{#if $drawerStore.id === 'Rules'}
+		<Rules />
+	{/if}
+</Drawer>

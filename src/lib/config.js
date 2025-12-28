@@ -2,7 +2,7 @@ export default {
 	devPort: 4173,
 	backendEnabled: true,
 	url: 'https://www.balderdash.app',
-	appVersion: '2.0.0',
+	appVersion: '1.0.0',
 	jwtTokenExpiration: '1h',
 	toastTimeout: 5000,
 	maxUsernameLength: 12,

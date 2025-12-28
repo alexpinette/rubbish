@@ -11,25 +11,8 @@ import { getDatabase } from 'firebase-admin/database';
 import { dev } from '$app/environment';
 import admin from 'firebase-admin';
 import { getApp, getApps, initializeApp } from 'firebase-admin/app';
-import {
-	PRIVATE_DEV_FB_CLIENT_EMAIL,
-	PRIVATE_DEV_FB_CLIENT_ID,
-	PRIVATE_DEV_FB_CLIENT_X509_CERT_URL,
-	PRIVATE_DEV_FB_KEY_B64,
-	PRIVATE_DEV_FB_KEY_ID,
-	PRIVATE_PROD_FB_CLIENT_EMAIL,
-	PRIVATE_PROD_FB_CLIENT_ID,
-	PRIVATE_PROD_FB_CLIENT_X509_CERT_URL,
-	PRIVATE_PROD_FB_KEY_B64,
-	PRIVATE_PROD_FB_KEY_ID,
-	PRIVATE_SECRET_TOKEN,
-} from '$env/static/private';
-import {
-	PUBLIC_DEV_FB_DATABASE_URL,
-	PUBLIC_PROD_FB_DATABASE_URL,
-	PUBLIC_DEV_FB_PROJECT_ID,
-	PUBLIC_PROD_FB_PROJECT_ID,
-} from '$env/static/public';
+import { env as privateEnv } from '$env/dynamic/private';
+import { env as publicEnv } from '$env/dynamic/public';
 import { client } from '$lib/analytics.js';
 
 const letters = 'abcdefghijklmnopqrstuvwxyz'.toUpperCase();
@@ -37,47 +20,53 @@ const letters = 'abcdefghijklmnopqrstuvwxyz'.toUpperCase();
 function requiredEnv(name, value) {
 	if (value === undefined || value === null || String(value).trim() === '') {
 		throw new Error(
-			`Missing environment variable ${name}. You need to configure Firebase + PostHog (optional). See .env.example for a starting template.`,
+			`Missing environment variable ${name}. Configure Firebase in .env.local (PostHog is optional).`,
 		);
 	}
 	return value;
 }
 
+function getEnvValue(envObj, devKey, prodKey) {
+	const primary = dev ? envObj[devKey] : envObj[prodKey];
+	const fallback = dev ? envObj[prodKey] : envObj[devKey];
+	return primary ?? fallback;
+}
+
 const firebaseProjectId = requiredEnv(
 	dev ? 'PUBLIC_DEV_FB_PROJECT_ID' : 'PUBLIC_PROD_FB_PROJECT_ID',
-	dev ? PUBLIC_DEV_FB_PROJECT_ID : PUBLIC_PROD_FB_PROJECT_ID,
+	getEnvValue(publicEnv, 'PUBLIC_DEV_FB_PROJECT_ID', 'PUBLIC_PROD_FB_PROJECT_ID'),
 );
 
 const firebaseDatabaseUrl = requiredEnv(
 	dev ? 'PUBLIC_DEV_FB_DATABASE_URL' : 'PUBLIC_PROD_FB_DATABASE_URL',
-	dev ? PUBLIC_DEV_FB_DATABASE_URL : PUBLIC_PROD_FB_DATABASE_URL,
+	getEnvValue(publicEnv, 'PUBLIC_DEV_FB_DATABASE_URL', 'PUBLIC_PROD_FB_DATABASE_URL'),
 );
 
 // Firebase Admin service account fields
 const privateKeyB64 = requiredEnv(
 	dev ? 'PRIVATE_DEV_FB_KEY_B64' : 'PRIVATE_PROD_FB_KEY_B64',
-	dev ? PRIVATE_DEV_FB_KEY_B64 : PRIVATE_PROD_FB_KEY_B64,
+	getEnvValue(privateEnv, 'PRIVATE_DEV_FB_KEY_B64', 'PRIVATE_PROD_FB_KEY_B64'),
 );
 
 const serviceAccount = {
 	type: 'service_account',
 	project_id: firebaseProjectId,
-	private_key_id: requiredEnv(dev ? 'PRIVATE_DEV_FB_KEY_ID' : 'PRIVATE_PROD_FB_KEY_ID', dev ? PRIVATE_DEV_FB_KEY_ID : PRIVATE_PROD_FB_KEY_ID),
+	private_key_id: requiredEnv(dev ? 'PRIVATE_DEV_FB_KEY_ID' : 'PRIVATE_PROD_FB_KEY_ID', getEnvValue(privateEnv, 'PRIVATE_DEV_FB_KEY_ID', 'PRIVATE_PROD_FB_KEY_ID')),
 	private_key: Buffer.from(privateKeyB64, 'base64').toString('utf8').replace(/\\n/g, '\n'),
-	client_email: requiredEnv(dev ? 'PRIVATE_DEV_FB_CLIENT_EMAIL' : 'PRIVATE_PROD_FB_CLIENT_EMAIL', dev ? PRIVATE_DEV_FB_CLIENT_EMAIL : PRIVATE_PROD_FB_CLIENT_EMAIL),
-	client_id: requiredEnv(dev ? 'PRIVATE_DEV_FB_CLIENT_ID' : 'PRIVATE_PROD_FB_CLIENT_ID', dev ? PRIVATE_DEV_FB_CLIENT_ID : PRIVATE_PROD_FB_CLIENT_ID),
+	client_email: requiredEnv(dev ? 'PRIVATE_DEV_FB_CLIENT_EMAIL' : 'PRIVATE_PROD_FB_CLIENT_EMAIL', getEnvValue(privateEnv, 'PRIVATE_DEV_FB_CLIENT_EMAIL', 'PRIVATE_PROD_FB_CLIENT_EMAIL')),
+	client_id: requiredEnv(dev ? 'PRIVATE_DEV_FB_CLIENT_ID' : 'PRIVATE_PROD_FB_CLIENT_ID', getEnvValue(privateEnv, 'PRIVATE_DEV_FB_CLIENT_ID', 'PRIVATE_PROD_FB_CLIENT_ID')),
 	auth_uri: 'https://accounts.google.com/o/oauth2/auth',
 	token_uri: 'https://oauth2.googleapis.com/token',
 	auth_provider_x509_cert_url: 'https://www.googleapis.com/oauth2/v1/certs',
 	client_x509_cert_url: requiredEnv(
 		dev ? 'PRIVATE_DEV_FB_CLIENT_X509_CERT_URL' : 'PRIVATE_PROD_FB_CLIENT_X509_CERT_URL',
-		dev ? PRIVATE_DEV_FB_CLIENT_X509_CERT_URL : PRIVATE_PROD_FB_CLIENT_X509_CERT_URL,
+		getEnvValue(privateEnv, 'PRIVATE_DEV_FB_CLIENT_X509_CERT_URL', 'PRIVATE_PROD_FB_CLIENT_X509_CERT_URL'),
 	),
 	universe_domain: 'googleapis.com',
 };
 
 // Validate JWT signing secret early, so local setup errors are obvious.
-requiredEnv('PRIVATE_SECRET_TOKEN', PRIVATE_SECRET_TOKEN);
+const JWT_SECRET = requiredEnv('PRIVATE_SECRET_TOKEN', privateEnv.PRIVATE_SECRET_TOKEN);
 
 const firebaseApp =
 	getApps().length > 0
@@ -206,7 +195,7 @@ export async function sessionIdExists(id) {
  * @returns signed JWT token
  */
 export function signToken(payload) {
-	return jwt.sign(payload, PRIVATE_SECRET_TOKEN, { expiresIn: config.jwtTokenExpiration });
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: config.jwtTokenExpiration });
 }
 
 /**
@@ -215,12 +204,12 @@ export function signToken(payload) {
  * @returns {boolean} - whether the token is valid
  */
 export function tokenIsValid(token) {
-	try {
-		jwt.verify(token, PRIVATE_SECRET_TOKEN);
-		return true;
-	} catch (error) {
-		return false;
-	}
+  try {
+    jwt.verify(token, JWT_SECRET);
+    return true;
+  } catch (error) {
+    return false;
+  }
 }
 
 /**

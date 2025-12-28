@@ -1,11 +1,6 @@
 import { PostHog } from 'posthog-node';
 import { dev } from '$app/environment';
-import {
-	PUBLIC_DEV_POSTHOG_API_KEY,
-	PUBLIC_DEV_POSTHOG_HOST,
-	PUBLIC_PROD_POSTHOG_API_KEY,
-	PUBLIC_PROD_POSTHOG_HOST,
-} from '$env/static/public';
+import { env } from '$env/dynamic/public';
 
 /**
  * PostHog is optional for local development.
@@ -23,7 +18,7 @@ function makeNoopClient() {
 	};
 }
 
-const apiKey = dev ? PUBLIC_DEV_POSTHOG_API_KEY : PUBLIC_PROD_POSTHOG_API_KEY;
-const host = dev ? PUBLIC_DEV_POSTHOG_HOST : PUBLIC_PROD_POSTHOG_HOST;
+const apiKey = dev ? env.PUBLIC_DEV_POSTHOG_API_KEY : env.PUBLIC_PROD_POSTHOG_API_KEY;
+const host = dev ? env.PUBLIC_DEV_POSTHOG_HOST : env.PUBLIC_PROD_POSTHOG_HOST;
 
 export const client = apiKey ? new PostHog(apiKey, host ? { host } : {}) : makeNoopClient();

@@ -1,5 +1,4 @@
 <script>
-	import { enhance } from '$app/forms';
 	import { page } from '$app/stores';
 	import { getContext, onMount } from 'svelte';
 	import { getDatabase, onValue, ref } from 'firebase/database';
@@ -14,6 +13,8 @@
 	let isHost = data.isHost;
 
 	let name = me?.name || '';
+	let error = '';
+	let busy = false;
 	let unsubscribe = null;
 
 	onMount(() => {
@@ -22,18 +23,67 @@
 		const roomRef = ref(db, `rooms/${data.roomCode}`);
 		unsubscribe = onValue(roomRef, (snapshot) => {
 			room = snapshot.val();
-			// server load is the source of truth for joined/me/isHost initially,
-			// but once realtime data arrives we can infer a bit for UI display.
 		});
 		return () => unsubscribe?.();
 	});
+
+	async function joinThisRoom(event) {
+		event.preventDefault();
+		error = '';
+		busy = true;
+
+		try {
+			const res = await fetch(`/api/rooms/${encodeURIComponent(data.roomCode)}/join`, {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ name })
+			});
+
+			const out = await res.json().catch(() => null);
+			if (!res.ok || !out?.ok) {
+				error = out?.message ?? 'Failed to join room';
+				return;
+			}
+
+			// Full navigation keeps server-load and cookies in sync.
+			window.location.assign(`/room/${data.roomCode}`);
+		} catch (e) {
+			error = e?.message ?? 'Failed to join room';
+		} finally {
+			busy = false;
+		}
+	}
+
+	async function startGame(event) {
+		event.preventDefault();
+		error = '';
+		busy = true;
+
+		try {
+			const res = await fetch(`/api/rooms/${encodeURIComponent(data.roomCode)}/start`, {
+				method: 'POST'
+			});
+
+			const out = await res.json().catch(() => null);
+			if (!res.ok || !out?.ok) {
+				error = out?.message ?? 'Failed to start game';
+				return;
+			}
+		} catch (e) {
+			error = e?.message ?? 'Failed to start game';
+		} finally {
+			busy = false;
+		}
+	}
 </script>
 
 <main class="max-w-2xl mx-auto">
 	<h1 class="h1 text-center pb-2">Room {data.roomCode}</h1>
 	<p class="text-center pb-6">
 		Open the presenter screen on a TV/laptop:
-		<a class="underline" href={`/room/${data.roomCode}/display`} target="_blank" rel="noreferrer">Display view</a>
+		<a class="underline" href={`/room/${data.roomCode}/display`} target="_blank" rel="noreferrer"
+			>Display view</a
+		>
 	</p>
 
 	{#if !room}
@@ -42,23 +92,27 @@
 			<button type="button" class="btn btn-sm variant-ringed" on:click={() => goto('/')}>Return home</button>
 		</div>
 	{:else}
+		{#if error}
+			<p class="text-error-600 pb-3">{error}</p>
+		{/if}
+
 		{#if !joined}
 			<h2 class="h2 pb-4">Join this room</h2>
 
-			{#if $page.form?.message}
-				<p class="text-error-600 pb-3">{$page.form.message}</p>
-			{/if}
-
-			<form method="POST" action="?/join" use:enhance class="space-y-4">
+			<form class="space-y-4" on:submit={joinThisRoom}>
 				<label class="label">
 					<span class="font-bold small-gap">Your Name</span>
 					<input class="input" name="username" type="text" bind:value={name} required />
 				</label>
-				<button type="submit" class="btn btn-xl rounded-lg w-full">Join</button>
+				<button type="submit" class="btn btn-xl rounded-lg w-full" disabled={busy}>
+					{busy ? 'Joining…' : 'Join'}
+				</button>
 			</form>
 		{:else}
 			<div class="pb-4">
-				<p class="text-center">You are <span class="font-bold">{me?.name}</span></p>
+				<p class="text-center">
+					You are <span class="font-bold">{me?.name}</span>
+				</p>
 				<p class="text-center text-sm opacity-80">
 					Status: {room?.meta?.state ?? 'LOBBY'}{room?.meta?.locked ? ' (locked)' : ''}
 				</p>
@@ -78,8 +132,10 @@
 			</ul>
 
 			{#if isHost && room?.meta?.state === 'LOBBY'}
-				<form method="POST" action="?/start" use:enhance class="pt-6">
-					<button type="submit" class="btn btn-xl rounded-lg w-full">Start Game (locks room)</button>
+				<form class="pt-6" on:submit={startGame}>
+					<button type="submit" class="btn btn-xl rounded-lg w-full" disabled={busy}>
+						{busy ? 'Starting…' : 'Start Game (locks room)'}
+					</button>
 				</form>
 			{/if}
 		{/if}

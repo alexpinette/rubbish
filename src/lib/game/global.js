@@ -9,6 +9,10 @@ import { contactRef } from '$lib/firebase/server.js';
 /**
  * Kick player from session
  * @type {SessionAction}
+ * 
+ * Note: The uid is not removed from the uids object because we cannot map
+ * username to uid directly. However, the join page checks prevent kicked users
+ * from rejoining with a different username on the same device.
  */
 export async function kick(cookies, params, request) {
 	const { form, sm } = await parseSessionRequest(cookies, params, request);

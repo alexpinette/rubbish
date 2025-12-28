@@ -10,7 +10,8 @@
 		"format": "prettier --write .",
 		"test:integration": "playwright test integration",
 		"test:lib": "vitest lib",
-		"prepare": "svelte-kit sync"
+		"prepare": "svelte-kit sync",
+		"clear-firebase": "bun run scripts/clear-firebase.js"
 	},
 	"devDependencies": {
 		"@playwright/test": "^1.28.1",

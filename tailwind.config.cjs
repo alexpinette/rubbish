@@ -1,12 +1,12 @@
-import { join } from 'path';
+const { join } = require('path');
 
-import forms from '@tailwindcss/forms';
-import typography from '@tailwindcss/typography';
-import { skeleton } from '@skeletonlabs/tw-plugin';
-import defaultTheme from 'tailwindcss/defaultTheme';
+const forms = require('@tailwindcss/forms');
+const typography = require('@tailwindcss/typography');
+const { skeleton } = require('@skeletonlabs/tw-plugin');
+const defaultTheme = require('tailwindcss/defaultTheme');
 
 /** @type {import('tailwindcss').Config} */
-export default {
+module.exports = {
 	darkMode: 'class',
 	content: [
 		'./src/**/*.{html,js,svelte,ts}',
@@ -35,3 +35,4 @@ export default {
 		}),
 	],
 };
+

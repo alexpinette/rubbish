@@ -23,7 +23,7 @@
 	$: buttonVariant = getButtonVariant(submitButtonIsDisabled);
 </script>
 
-<div class="balderdash-modal">
+<div class="rubbish-modal">
 	<h2 class="h2">Set your own prompt</h2>
 	<p class="text-xs">
 		You can set your own prompt-response pair. Please respect the selected category, this will allow

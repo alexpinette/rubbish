@@ -6,11 +6,11 @@
 	<h1 class="h1">Rules</h1>
 	<br class="pb-5" />
 	<p>
-		Balderdash is a popular board game where players concoct convincing but false responses to a
-		prompt. The game revolves around the dynamic of a "prompt" and "response" pairs that depend on
-		the category -- e.g. if the category is "rare words", then the prompt will be a word and the
-		response will be the definition of that word, whereas in the context of film taglines the prompt
-		will be a movie title and the response will be the tagline.
+		Rubbish is based on the classic Balderdash board game, where players concoct convincing but false 
+		responses to a prompt. The game revolves around the dynamic of "prompt" and "response" pairs that 
+		depend on the category -- e.g. if the category is "rare words", then the prompt will be a word 
+		and the response will be the definition of that word, whereas in the context of film taglines the 
+		prompt will be a movie title and the response will be the tagline.
 	</p>
 
 	<br class="pb-5" />

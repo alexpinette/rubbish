@@ -42,7 +42,8 @@
 		{/each}
 	</div>
 	<div class="footer-row px-5 py-2">
-		<a class="text-xl" href="https://github.com/ivan-rivera/balderdash-web/tree/main"
+		<a class="text-xl" href="https://github.com/ivan-rivera/balderdash-web" target="_blank" rel="noopener noreferrer"
+			title="Original repository"
 			><Fa icon={faGithub} /></a
 		>
 		<p class="text-sm">Version {config.appVersion}</p>

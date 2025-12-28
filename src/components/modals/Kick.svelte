@@ -12,7 +12,7 @@
 	let playerToRemove = $players[0];
 </script>
 
-<div class="balderdash-modal">
+<div class="rubbish-modal">
 	<h2 class="h2">Remove Player</h2>
 	<p>
 		If a player leaves the game before it ends, you can remove them in order to be able to finish it

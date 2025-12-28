@@ -7,8 +7,8 @@
 <div class="flex flex-col items-center justify-center mx-auto">
 	<!-- Top -->
 	<div class="py-5">
-		<h2 class="h2 py-2 text-center">Balderdash • /ˈbɔːldədaʃ/</h2>
-		<h3 class="h3">senseless talk or writing; nonsense</h3>
+		<h2 class="h2 py-2 text-center">Rubbish</h2>
+		<h3 class="h3">Based on the classic Balderdash board game</h3>
 	</div>
 	<!-- Buttons -->
 	<div class="flex flex-col items-center justify-center space-y-5 p-10">
@@ -36,8 +36,9 @@
 	</div>
 	<!-- Description -->
 	<p class="my-5">
-		The iconic party game of bluffing and trivia! Guess or craft clever definitions for a mix of
-		obscure words, people, and more! Perfect for 4-8 players seeking a fun, brain-teasing challenge!
+		The iconic party game of bluffing and trivia! Based on the classic Balderdash board game, 
+		guess or craft clever definitions for a mix of obscure words, people, and more! 
+		Perfect for 4-8 players seeking a fun, brain-teasing challenge!
 	</p>
 </div>
 

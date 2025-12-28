@@ -19,7 +19,7 @@
 
 	let sessionId = $page.params.sessionId;
 	let username = getContext(USERNAME);
-	let invitationText = 'Join me for a game of Balderdash!';
+	let invitationText = 'Join me for a game of Rubbish!';
 	let invitationUrl = `${config.url}/join?id=${sessionId}`;
 	let invitationTextAndUrl = `${invitationText} URL: ${invitationUrl}`;
 	const invite = async () => {

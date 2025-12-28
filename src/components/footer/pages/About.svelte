@@ -2,10 +2,13 @@
 	<h1 class="h1">About</h1>
 	<br class="pb-5" />
 	<p>
-		This website was built by an independent developer who loves Balderdash and who wanted to be
-		able to play it online with his friends and family. If you've stumbled upon this web app online,
-		then you are also welcome to play it as much as you like. I'm also happy for you to share this
-		app with your friends too.
+		Rubbish is a web-based version of the classic Balderdash board game, built for playing online 
+		with friends and family. This project is a fork of 
+		<a href="https://github.com/ivan-rivera/balderdash-web" target="_blank" rel="noopener noreferrer" class="attention">
+			ivan-rivera/balderdash-web
+		</a>, 
+		which was created by an independent developer who loves Balderdash. If you've stumbled upon this 
+		web app, you're welcome to play it as much as you like and share it with your friends too.
 	</p>
 	<br class="pb-5" />
 	<p>

@@ -40,6 +40,7 @@ export async function POST({ cookies, params, request }) {
 		const now = admin.database.ServerValue.TIMESTAMP;
 
 		// Re-join (same playerId cookie) even if room locked.
+		// This allows players to reconnect if they refresh or come back
 		if (existing && existing.status !== 'KICKED') {
 			await roomsRef.child(roomCode).child('players').child(playerId).update({
 				name,

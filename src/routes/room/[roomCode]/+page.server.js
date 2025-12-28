@@ -19,12 +19,22 @@ export async function load({ cookies, params }) {
 	const me = room?.players?.[playerId] ?? null;
 	const joined = Boolean(me && me.status !== 'KICKED');
 
+	// If player is joined, immediately update their connection status
+	if (joined && me) {
+		const now = admin.database.ServerValue.TIMESTAMP;
+		await roomsRef.child(roomCode).child('players').child(playerId).update({
+			connected: true,
+			lastSeenAt: now,
+		});
+	}
+
 	return {
 		roomCode,
 		room,
 		joined,
 		me,
 		isHost: joined && room?.meta?.hostPlayerId === playerId,
+		playerId, // Pass playerId to client for heartbeat
 	};
 }
 

@@ -1,9 +1,10 @@
 <script>
 	import { page } from '$app/stores';
-	import { getContext, onMount } from 'svelte';
+	import { getContext, onMount, onDestroy } from 'svelte';
 	import { getDatabase, onValue, ref } from 'firebase/database';
-	import { FIREBASE } from '$lib/constants';
+	import { FIREBASE, PLAYER_ID } from '$lib/constants';
 	import { goto } from '$app/navigation';
+	import { startHeartbeat, isPlayerOnline } from '$lib/presence';
 
 	/** @type {any} */ export let data;
 
@@ -16,6 +17,8 @@
 	let error = '';
 	let busy = false;
 	let unsubscribe = null;
+	let stopHeartbeat = null;
+	let stopPresenceCheck = null;
 
 	onMount(() => {
 		const firebaseApp = getContext(FIREBASE);
@@ -24,7 +27,26 @@
 		unsubscribe = onValue(roomRef, (snapshot) => {
 			room = snapshot.val();
 		});
-		return () => unsubscribe?.();
+
+		// Start heartbeat if player is joined
+		if (joined && me?.status === 'ACTIVE' && data.playerId) {
+			stopHeartbeat = startHeartbeat(data.roomCode, data.playerId);
+		}
+
+		// Start presence checking for all players in the room
+		// Pass a function that returns the current room state
+		stopPresenceCheck = startPresenceCheck(data.roomCode, () => room, () => firebaseApp);
+
+		return () => {
+			if (unsubscribe) unsubscribe();
+			if (stopHeartbeat) stopHeartbeat();
+			if (stopPresenceCheck) stopPresenceCheck();
+		};
+	});
+
+	onDestroy(() => {
+		if (stopHeartbeat) stopHeartbeat();
+		if (stopPresenceCheck) stopPresenceCheck();
 	});
 
 	async function joinThisRoom(event) {
@@ -122,10 +144,15 @@
 			<ul class="list-disc pl-6">
 				{#each Object.entries(room?.players ?? {}) as [pid, p] (pid)}
 					{#if p?.status === 'ACTIVE'}
+						{@const online = isPlayerOnline(p?.lastSeenAt)}
 						<li>
 							{p.name}
 							{#if room?.meta?.hostPlayerId === pid}<span class="text-xs opacity-70"> (host)</span>{/if}
-							{#if p.connected}<span class="text-xs opacity-70"> • online</span>{:else}<span class="text-xs opacity-70"> • offline</span>{/if}
+							{#if online}
+								<span class="text-xs opacity-70 text-success-500"> • online</span>
+							{:else}
+								<span class="text-xs opacity-70 text-error-500"> • offline</span>
+							{/if}
 						</li>
 					{/if}
 				{/each}

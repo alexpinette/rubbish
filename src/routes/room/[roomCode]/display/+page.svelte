@@ -2,6 +2,7 @@
 	import { getContext, onMount } from 'svelte';
 	import { getDatabase, onValue, ref } from 'firebase/database';
 	import { FIREBASE } from '$lib/constants';
+	import { isPlayerOnline } from '$lib/presence';
 
 	/** @type {{roomCode: string, room: any}} */ export let data;
 
@@ -35,10 +36,16 @@
 		<div class="grid grid-cols-2 md:grid-cols-3 gap-3">
 			{#each Object.entries(room?.players ?? {}) as [pid, p] (pid)}
 				{#if p?.status === 'ACTIVE'}
-					<div class="card p-3">
+					{@const online = isPlayerOnline(p?.lastSeenAt)}
+					<div class="card p-3" class:opacity-50={!online}>
 						<div class="font-bold">{p.name}</div>
 						<div class="text-xs opacity-70">
-							{room?.meta?.hostPlayerId === pid ? 'Host • ' : ''}{p.connected ? 'online' : 'offline'}
+							{room?.meta?.hostPlayerId === pid ? 'Host • ' : ''}
+							{#if online}
+								<span class="text-success-500">online</span>
+							{:else}
+								<span class="text-error-500">offline</span>
+							{/if}
 						</div>
 					</div>
 				{/if}

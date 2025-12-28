@@ -84,7 +84,7 @@
 		background=""
 		border=""
 		hover=""
-		active="variant-ghost-secondary"
+		active="variant-filled-secondary"
 		rounded="rounded-container-token"
 		flexDirection="flex-col w-full"
 	>
@@ -96,7 +96,12 @@
 				required
 				disabled={userIsDasher || userHasVoted || userWasCorrect || content.yours}
 			>
-				<div class="card my-5 border border-tertiary-500 w-full">
+				<div
+					class="card my-5 border w-full transition-all duration-200 {selectedResponse ===
+					index
+						? 'border-primary-500 border-2 bg-primary-50 dark:bg-primary-900/20'
+						: 'border-tertiary-500'}"
+				>
 					{#if userIsDasher || userHasVoted || userWasCorrect}
 						<div class="card-header text-xs underline">
 							{group === TRUE_RESPONSE

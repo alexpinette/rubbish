@@ -25,6 +25,21 @@
 			class="variant-filled action-button"
 			on:click={() => goto('/join')}>Join Game</button
 		>
+
+		<div class="w-full border-t border-surface-300 dark:border-surface-700 my-2"></div>
+		<h2 class="h2 text-center pt-2">Room-based mode (beta)</h2>
+		<button
+			name="host-room"
+			type="button"
+			class="variant-filled action-button"
+			on:click={() => goto('/room/new')}>Host a Room</button
+		>
+		<button
+			name="join-room"
+			type="button"
+			class="variant-filled action-button"
+			on:click={() => goto('/room/join')}>Join a Room</button
+		>
 		{#if data.activeSessionId !== ''}
 			<button
 				name="resume-game"

@@ -7,6 +7,23 @@ import {
 	PUBLIC_PROD_POSTHOG_HOST,
 } from '$env/static/public';
 
-export const client = new PostHog(dev ? PUBLIC_DEV_POSTHOG_API_KEY : PUBLIC_PROD_POSTHOG_API_KEY, {
-	host: dev ? PUBLIC_DEV_POSTHOG_HOST : PUBLIC_PROD_POSTHOG_HOST,
-});
+/**
+ * PostHog is optional for local development.
+ * If keys are not provided, export a no-op client so the app can run.
+ */
+function makeNoopClient() {
+	const noop = () => {};
+	return {
+		capture: noop,
+		identify: noop,
+		alias: noop,
+		groupIdentify: noop,
+		flush: async () => {},
+		shutdown: async () => {},
+	};
+}
+
+const apiKey = dev ? PUBLIC_DEV_POSTHOG_API_KEY : PUBLIC_PROD_POSTHOG_API_KEY;
+const host = dev ? PUBLIC_DEV_POSTHOG_HOST : PUBLIC_PROD_POSTHOG_HOST;
+
+export const client = apiKey ? new PostHog(apiKey, host ? { host } : {}) : makeNoopClient();

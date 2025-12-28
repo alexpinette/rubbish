@@ -5,6 +5,7 @@
 	import { firebaseApp } from '$lib/firebase/client';
 	import { AppShell, Modal, Toast, getToastStore, initializeStores } from '@skeletonlabs/skeleton';
 	import { onMount, setContext } from 'svelte';
+	import { page } from '$app/stores';
 	import '../app.postcss';
 	import Footer from '../components/footer/Footer.svelte';
 	import Kick from '../components/modals/Kick.svelte';
@@ -12,6 +13,7 @@
 	import Header from '../components/globals/Header.svelte';
 
 	initializeStores();
+	$: fullWidth = $page.url.pathname.includes('/display');
 	const toastStore = getToastStore();
 	const modalRegistry = {
 		prompt: { ref: Prompt },
@@ -30,7 +32,7 @@
 <Toast />
 <AppShell>
 	<Header />
-	<div class="min-w-2xs max-w-lg mx-auto px-5">
+	<div class={fullWidth ? "w-full px-5" : "min-w-2xs max-w-lg mx-auto px-5"}>
 		<slot />
 	</div>
 	<svelte:fragment slot="footer">

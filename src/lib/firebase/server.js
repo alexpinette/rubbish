@@ -6,7 +6,7 @@
 
 import jwt from 'jsonwebtoken';
 import config from '$lib/config';
-import { CONTACT_DB, DB, FEEDBACK, TOKEN } from '$lib/constants';
+import { CONTACT_DB, DB, FEEDBACK, ROOMS_DB, TOKEN } from '$lib/constants';
 import { getDatabase } from 'firebase-admin/database';
 import { dev } from '$app/environment';
 import admin from 'firebase-admin';
@@ -24,37 +24,72 @@ import {
 	PRIVATE_PROD_FB_KEY_ID,
 	PRIVATE_SECRET_TOKEN,
 } from '$env/static/private';
-import { PUBLIC_DEV_FB_DATABASE_URL, PUBLIC_PROD_FB_DATABASE_URL } from '$env/static/public';
+import {
+	PUBLIC_DEV_FB_DATABASE_URL,
+	PUBLIC_PROD_FB_DATABASE_URL,
+	PUBLIC_DEV_FB_PROJECT_ID,
+	PUBLIC_PROD_FB_PROJECT_ID,
+} from '$env/static/public';
 import { client } from '$lib/analytics.js';
 
 const letters = 'abcdefghijklmnopqrstuvwxyz'.toUpperCase();
 
+function requiredEnv(name, value) {
+	if (value === undefined || value === null || String(value).trim() === '') {
+		throw new Error(
+			`Missing environment variable ${name}. You need to configure Firebase + PostHog (optional). See .env.example for a starting template.`,
+		);
+	}
+	return value;
+}
+
+const firebaseProjectId = requiredEnv(
+	dev ? 'PUBLIC_DEV_FB_PROJECT_ID' : 'PUBLIC_PROD_FB_PROJECT_ID',
+	dev ? PUBLIC_DEV_FB_PROJECT_ID : PUBLIC_PROD_FB_PROJECT_ID,
+);
+
+const firebaseDatabaseUrl = requiredEnv(
+	dev ? 'PUBLIC_DEV_FB_DATABASE_URL' : 'PUBLIC_PROD_FB_DATABASE_URL',
+	dev ? PUBLIC_DEV_FB_DATABASE_URL : PUBLIC_PROD_FB_DATABASE_URL,
+);
+
+// Firebase Admin service account fields
+const privateKeyB64 = requiredEnv(
+	dev ? 'PRIVATE_DEV_FB_KEY_B64' : 'PRIVATE_PROD_FB_KEY_B64',
+	dev ? PRIVATE_DEV_FB_KEY_B64 : PRIVATE_PROD_FB_KEY_B64,
+);
+
 const serviceAccount = {
 	type: 'service_account',
-	project_id: dev ? 'balderdash2-dev' : 'balderdash2-prod',
-	private_key_id: dev ? PRIVATE_DEV_FB_KEY_ID : PRIVATE_PROD_FB_KEY_ID,
-	private_key: atob(dev ? PRIVATE_DEV_FB_KEY_B64 : PRIVATE_PROD_FB_KEY_B64).replace(/\\n/g, '\n'),
-	client_email: dev ? PRIVATE_DEV_FB_CLIENT_EMAIL : PRIVATE_PROD_FB_CLIENT_EMAIL,
-	client_id: dev ? PRIVATE_DEV_FB_CLIENT_ID : PRIVATE_PROD_FB_CLIENT_ID,
+	project_id: firebaseProjectId,
+	private_key_id: requiredEnv(dev ? 'PRIVATE_DEV_FB_KEY_ID' : 'PRIVATE_PROD_FB_KEY_ID', dev ? PRIVATE_DEV_FB_KEY_ID : PRIVATE_PROD_FB_KEY_ID),
+	private_key: Buffer.from(privateKeyB64, 'base64').toString('utf8').replace(/\\n/g, '\n'),
+	client_email: requiredEnv(dev ? 'PRIVATE_DEV_FB_CLIENT_EMAIL' : 'PRIVATE_PROD_FB_CLIENT_EMAIL', dev ? PRIVATE_DEV_FB_CLIENT_EMAIL : PRIVATE_PROD_FB_CLIENT_EMAIL),
+	client_id: requiredEnv(dev ? 'PRIVATE_DEV_FB_CLIENT_ID' : 'PRIVATE_PROD_FB_CLIENT_ID', dev ? PRIVATE_DEV_FB_CLIENT_ID : PRIVATE_PROD_FB_CLIENT_ID),
 	auth_uri: 'https://accounts.google.com/o/oauth2/auth',
 	token_uri: 'https://oauth2.googleapis.com/token',
 	auth_provider_x509_cert_url: 'https://www.googleapis.com/oauth2/v1/certs',
-	client_x509_cert_url: dev
-		? PRIVATE_DEV_FB_CLIENT_X509_CERT_URL
-		: PRIVATE_PROD_FB_CLIENT_X509_CERT_URL,
+	client_x509_cert_url: requiredEnv(
+		dev ? 'PRIVATE_DEV_FB_CLIENT_X509_CERT_URL' : 'PRIVATE_PROD_FB_CLIENT_X509_CERT_URL',
+		dev ? PRIVATE_DEV_FB_CLIENT_X509_CERT_URL : PRIVATE_PROD_FB_CLIENT_X509_CERT_URL,
+	),
 	universe_domain: 'googleapis.com',
 };
+
+// Validate JWT signing secret early, so local setup errors are obvious.
+requiredEnv('PRIVATE_SECRET_TOKEN', PRIVATE_SECRET_TOKEN);
 
 const firebaseApp =
 	getApps().length > 0
 		? getApp()
 		: initializeApp({
 				credential: admin.credential.cert(/** @type {ServiceAccount} */ (serviceAccount)),
-				databaseURL: dev ? PUBLIC_DEV_FB_DATABASE_URL : PUBLIC_PROD_FB_DATABASE_URL,
+				databaseURL: firebaseDatabaseUrl,
 			});
 
 const rtdb = getDatabase(firebaseApp);
 export const dbRef = rtdb.ref(DB);
+export const roomsRef = rtdb.ref(ROOMS_DB);
 export const contactRef = rtdb.ref(CONTACT_DB);
 export const feedbackRef = rtdb.ref(FEEDBACK);
 
@@ -123,6 +158,36 @@ export async function createNewSessionId() {
 	const id = generateSessionId();
 	if (await sessionIdExists(id)) return createNewSessionId();
 	else return id;
+}
+
+/**
+ * Get room from code
+ * @param {string} code - room code
+ * @returns {Promise<any>} - room data (untyped)
+ */
+export async function getRoom(code) {
+	const snapshot = await roomsRef.child(code).get();
+	return snapshot.exists() ? snapshot.val() : null;
+}
+
+/**
+ * Check if room code exists
+ * @param {string} code
+ * @returns {Promise<boolean>}
+ */
+export async function roomCodeExists(code) {
+	const snapshot = await roomsRef.child(code).get();
+	return snapshot.exists();
+}
+
+/**
+ * Create a new unique room code
+ * @returns {Promise<string>}
+ */
+export async function createNewRoomCode() {
+	const code = generateSessionId();
+	if (await roomCodeExists(code)) return createNewRoomCode();
+	return code;
 }
 
 /**

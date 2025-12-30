@@ -20,11 +20,11 @@
 	$: userIsDasher = $dasher === user;
 </script>
 
-<div class="border box-color rounded-lg py-2 text-center">
+<div class="border box-color rounded-lg py-2 px-4 sm:px-6 text-center">
 	{#if $isCustomPrompt}
 		<p class="text-xs underline italic">Custom Prompt</p>
 	{/if}
-	<h2 class="h2 py-2 text-primary-400">{$roundPrompt}</h2>
+	<h2 class="h2 py-2 px-2 text-primary-400">{$roundPrompt}</h2>
 	{#if userIsDasher && withInfo}
 		<h4 class="h4 italic pb-2 mx-2">{$roundResponse}</h4>
 	{/if}

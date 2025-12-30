@@ -22,10 +22,10 @@
 
 <style>
 	.logo-container {
-		@apply relative cursor-pointer p-10;
+		@apply relative cursor-pointer p-6 sm:p-10;
 		font-family: 'Mea Culpa', cursive;
 		user-select: none;
-		min-height: 160px;
+		min-height: 100px;
 		display: flex;
 		align-items: center;
 		justify-content: center;
@@ -33,10 +33,10 @@
 
 	.roys-text {
 		@apply text-primary-500;
-		font-size: 3.5rem;
+		font-size: 2.5rem;
 		line-height: 1;
 		position: absolute;
-		top: 2.5rem;
+		top: 1.5rem;
 		left: 50%;
 		transform: translateX(-20%) translateY(0);
 		z-index: 2;
@@ -46,7 +46,7 @@
 
 	.rubbish-text {
 		@apply text-black dark:text-white;
-		font-size: 5.5rem;
+		font-size: 4rem;
 		line-height: 0.9;
 		position: relative;
 		display: inline-block;
@@ -66,7 +66,23 @@
 		letter-spacing: 0.02em;
 	}
 
-	@media (max-width: 640px) {
+	@media (min-width: 640px) {
+		.logo-container {
+			min-height: 140px;
+			padding: 2.5rem;
+		}
+
+		.roys-text {
+			font-size: 3rem;
+			top: 2rem;
+		}
+
+		.rubbish-text {
+			font-size: 5rem;
+		}
+	}
+
+	@media (min-width: 1024px) {
 		.logo-container {
 			min-height: 160px;
 		}
@@ -74,7 +90,6 @@
 		.roys-text {
 			font-size: 3.5rem;
 			top: 2.5rem;
-			transform: translateX(-20%) translateY(0);
 		}
 
 		.rubbish-text {

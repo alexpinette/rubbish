@@ -38,37 +38,37 @@ export default {
 			name: 'Rare words',
 			description: 'Guess the definition',
 			source:
-				'https://raw.githubusercontent.com/ivan-rivera/balderdash-data/main/data/rare_words.json',
+				'https://raw.githubusercontent.com/alexpinette/rubbish-data/main/data/rare_words.json',
 			enabled: true,
 			promptName: 'word',
 			responseName: 'definition',
 		},
 		{
-			name: 'Scientific names',
-			description: 'Guess the common name',
-			source:
-				'https://raw.githubusercontent.com/ivan-rivera/balderdash-data/main/data/scientific_names.json',
-			enabled: true,
-			promptName: 'Latin name',
-			responseName: 'common name',
-		},
-		{
-			name: 'Film taglines',
-			description: 'Guess the tagline',
-			source:
-				'https://raw.githubusercontent.com/ivan-rivera/balderdash-data/main/data/film_taglines.json',
-			enabled: true,
-			promptName: 'film title',
-			responseName: 'tagline',
-		},
-		{
 			name: 'Famous people',
 			description: 'Guess why they are famous',
 			source:
-				'https://raw.githubusercontent.com/ivan-rivera/balderdash-data/main/data/famous_people.json',
+				'https://raw.githubusercontent.com/alexpinette/rubbish-data/main/data/famous_people.json',
 			enabled: true,
 			promptName: 'person',
 			responseName: 'claim to fame',
+		},
+		{
+			name: 'Movie titles',
+			description: 'Guess the plot',
+			source:
+				'https://raw.githubusercontent.com/alexpinette/rubbish-data/main/data/movie_titles.json',
+			enabled: true,
+			promptName: 'movie title',
+			responseName: 'plot',
+		},
+		{
+			name: 'Laws',
+			description: 'Guess what the law says',
+			source:
+				'https://raw.githubusercontent.com/alexpinette/rubbish-data/main/data/laws.json',
+			enabled: true,
+			promptName: 'law',
+			responseName: 'description',
 		},
 	],
 };

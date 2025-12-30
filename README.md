@@ -8,7 +8,7 @@ Rubbish is an online multiplayer game where players craft convincing but false r
 
 ### Features
 
-- Multiple categories: Rare words, Scientific names, Film taglines, Famous people
+- Multiple categories: Rare words, Famous people, Movie titles, Laws
 - Support for custom definitions
 - Ability to double bluff for extra points
 - AI/NPC guesses to make the game more interesting
@@ -32,7 +32,7 @@ Rubbish is an online multiplayer game where players craft convincing but false r
 
 ## Attribution
 
-This project is a fork of [ivan-rivera/balderdash-web](https://github.com/ivan-rivera/balderdash-web), which was created by an independent developer. The original project uses data from [ivan-rivera/balderdash-data](https://github.com/ivan-rivera/balderdash-data).
+This project is a fork of [ivan-rivera/balderdash-web](https://github.com/ivan-rivera/balderdash-web), which was created by an independent developer. This project uses data from [alexpinette/rubbish-data](https://github.com/alexpinette/rubbish-data), which is a fork of [ivan-rivera/balderdash-data](https://github.com/ivan-rivera/balderdash-data).
 
 ## For Developers
 

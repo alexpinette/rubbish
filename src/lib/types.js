@@ -17,7 +17,7 @@
  * @typedef {'session'|'round'} Ref
  *
  * Available categories
- * @typedef {'Rare words'|'Scientific names'|'Film taglines'|'Famous people'} Category
+ * @typedef {'Rare words'|'Famous people'|'Movie titles'|'Laws'} Category
  *
  * Session data structure
  * @typedef {Object} Session

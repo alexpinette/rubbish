@@ -9,8 +9,8 @@
 		Rubbish is based on the classic Balderdash board game, where players concoct convincing but false 
 		responses to a prompt. The game revolves around the dynamic of "prompt" and "response" pairs that 
 		depend on the category -- e.g. if the category is "rare words", then the prompt will be a word 
-		and the response will be the definition of that word, whereas in the context of film taglines the 
-		prompt will be a movie title and the response will be the tagline.
+		and the response will be the definition of that word, whereas in the context of movie titles the 
+		prompt will be a movie title and the response will be the plot description.
 	</p>
 
 	<br class="pb-5" />
@@ -19,8 +19,8 @@
 	<p>The game is played in rounds where one person is the dasher and all others are guessers</p>
 	<br class="pb-5" />
 	<p>
-		The dasher selects a prompt (e.g. rare word, acronym, etc) and the guessers must find the
-		matching response (e.g. definition)
+		The dasher selects a prompt (e.g. rare word, movie title, law, etc) and the guessers must find the
+		matching response (e.g. definition, plot, description)
 	</p>
 	<br class="pb-5" />
 	<p>

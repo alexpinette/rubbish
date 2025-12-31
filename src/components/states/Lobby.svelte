@@ -4,110 +4,60 @@
 	import config from '$lib/config';
 	import { SESSION, USERNAME } from '$lib/constants';
 	import { session } from '$lib/store';
-	import { getButtonVariant, handleError } from '$lib/utils';
+	import { getButtonVariant } from '$lib/utils';
 	import { faCheckCircle, faCircleExclamation } from '@fortawesome/free-solid-svg-icons';
-	import { getToastStore } from '@skeletonlabs/skeleton';
 	import { getContext } from 'svelte';
 	import Fa from 'svelte-fa';
 	import posthog from 'posthog-js';
 
-	const toastStore = getToastStore();
-	const { players, host, limit, ais, categories, data } = session;
+	const { players, data, hostPlayer } = session;
 
 	$: isButtonDisabled = $players.length < config.minPlayersRequired;
 	$: buttonVariant = getButtonVariant(isButtonDisabled);
+	$: isFirstPlayer = $hostPlayer === username && $hostPlayer !== 'UNKNOWN';
 
 	let sessionId = $page.params.sessionId;
 	let username = getContext(USERNAME);
-	let invitationText = 'Join me for a game of Rubbish!';
-	let invitationUrl = `${config.url}/join?id=${sessionId}`;
-	let invitationTextAndUrl = `${invitationText} URL: ${invitationUrl}`;
-	const invite = async () => {
-		posthog.capture('invite_clicked');
-		if (navigator === undefined) {
-			let error = new Error('Navigator not available');
-			handleError(toastStore, error);
-			throw error;
-		} else if (navigator.share) {
-			try {
-				await navigator.share({ title: 'Invitation', text: invitationTextAndUrl });
-			} catch (_error) {
-				let error = /** @type {Error} */ (_error);
-				handleError(toastStore, error);
-				throw error;
-			}
-		} else if (navigator.clipboard === undefined || navigator.clipboard.writeText === undefined) {
-			let error = new Error('This functionality is not supported on your device');
-			handleError(toastStore, error);
-			throw error;
-		} else {
-			try {
-				await navigator.clipboard.writeText(invitationTextAndUrl);
-				toastStore.trigger({
-					message: 'Invitation copied to clipboard!',
-					timeout: config.toastTimeout,
-					background: 'variant-filled-success',
-				});
-			} catch (_error) {
-				let error = /** @type {Error} */ (_error);
-				handleError(toastStore, error);
-				throw error;
-			}
-		}
-	};
 </script>
 
 <div class="text-center">
-	<h1 class="h1 mb-5">Lobby</h1>
-	<div class="border-2 border-surface-400 rounded-lg p-5">
-		<h2 class="h2 mb-5">Players</h2>
-		<div class="border-t-primary-400" />
-		<ul>
+	<h1 class="h1 mb-6">Lobby</h1>
+	<div class="lobby-card">
+		<div class="room-code-section">
+			<span class="session-detail">Room Code: </span>
+			<span class="room-code-value">{sessionId}</span>
+		</div>
+		<div class="divider" />
+		<h2 class="h2 mb-4">Players</h2>
+		<ul class="players-list">
 			{#each $players as player}
-				<li class="inline-flex gap-x-1 w-full items-center">
-					<span class="text-xl text-success-800"><Fa icon={faCheckCircle} /></span>
-					<span class="text-2xl">{player === username ? `${player} (you)` : player}</span>
+				<li class="player-list-item">
+					<Fa icon={faCheckCircle} class="player-icon" />
+					<span class="player-name">{player === username ? `${player} (you)` : player}</span>
 				</li>
 			{/each}
 		</ul>
-		<div class="border-2 border-surface-400 my-10" />
-		<h2 class="h2 mb-5">Game Details</h2>
-		<div class="text-left text-sm xs:text-lg">
-			<div>
-				<span class="session-detail">Session ID: </span>
-				<span>{sessionId}</span>
-			</div>
-			<div>
-				<span class="session-detail">Host: </span>
-				<span>{$host}</span>
-			</div>
-			<div>
-				<span class="session-detail">Rounds: </span>
-				<span>{$limit}</span>
-			</div>
-			<div>
-				<span class="session-detail">AI guesses: </span>
-				<span>{$ais}</span>
-			</div>
-			<div>
-				<span class="session-detail">Categories: </span>
-				<span>{$categories.join(', ')}</span>
-			</div>
-		</div>
 	</div>
-	{#if isButtonDisabled && username === $host}
+	{#if isButtonDisabled && isFirstPlayer}
 		<span class="inline-flex small-gap gap-x-1 items-center justify-center w-full mt-2">
 			<span class="txt-lg"><Fa icon={faCircleExclamation} /></span>
 			<span>At least {config.minPlayersRequired} are needed to begin</span>
 		</span>
 	{/if}
 	<div class="mt-5">
-		{#if username === $host}
+		{#if isFirstPlayer}
 			<form
 				action="?/lobby.launch"
 				method="POST"
-				use:enhance
-				on:submit={() => posthog.capture('game_started')}
+				use:enhance={({ update }) => {
+					posthog.capture('game_started');
+					// Wait a bit for Firebase to update, then let SvelteKit handle the update
+					return async ({ result, update: updateFn }) => {
+						// Wait for Firebase listener to pick up the state change
+						await new Promise(resolve => setTimeout(resolve, 500));
+						await updateFn();
+					};
+				}}
 			>
 				<input type="text" name={SESSION} value={JSON.stringify($data)} hidden />
 				<button
@@ -115,24 +65,53 @@
 					type="submit"
 					class="{buttonVariant} text-2xl button-xl rounded-lg w-full p-3 mb-2"
 					disabled={isButtonDisabled}
-					>Launch
+					>Start Game
 				</button>
 			</form>
+		{:else if $hostPlayer && $hostPlayer !== 'UNKNOWN'}
+			<p class="text-tertiary-700 pb-5">Waiting for {$hostPlayer} to start the game...</p>
 		{:else}
-			<p class="text-tertiary-700 pb-5">Waiting for host to start the game...</p>
+			<p class="text-tertiary-700 pb-5">Waiting for players to join...</p>
 		{/if}
-		<button
-			name="invite"
-			type="button"
-			class="btn bg-gradient-to-br variant-gradient-primary-tertiary text-2xl button-xl rounded-lg w-full p-3 mb-5"
-			on:click={invite}
-			>Invite
-		</button>
 	</div>
 </div>
 
 <style>
+	.lobby-card {
+		@apply bg-surface-100 dark:bg-surface-800 border-2 border-surface-300 dark:border-surface-700 rounded-lg p-6 mb-5;
+		box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+	}
+
+	.room-code-section {
+		@apply mb-5;
+	}
+
 	.session-detail {
-		@apply font-bold text-primary-400;
+		@apply font-semibold text-primary-400 text-lg;
+	}
+
+	.room-code-value {
+		@apply text-xl font-mono font-bold text-primary-500;
+		letter-spacing: 0.1em;
+	}
+
+	.divider {
+		@apply border-t border-primary-400 my-5;
+	}
+
+	.players-list {
+		@apply space-y-2;
+	}
+
+	.player-list-item {
+		@apply inline-flex gap-x-2 w-full items-center justify-start;
+	}
+
+	.player-icon {
+		@apply text-success-600 dark:text-success-400 text-lg;
+	}
+
+	.player-name {
+		@apply text-xl font-medium;
 	}
 </style>

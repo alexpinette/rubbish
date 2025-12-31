@@ -31,11 +31,13 @@
 	{#if userIsDasher}
 		<p>Choose a challenging {prompt} to guess</p>
 	{:else}
-		<p>The dasher is choosing a {prompt}...</p>
+		<p>The dasher is choosing a prompt...</p>
 	{/if}
 </div>
 <!-- Selection Box -->
-<Prompter withInfo={true} />
+{#if userIsDasher}
+	<Prompter withInfo={true} />
+{/if}
 {#if userIsDasher}
 	<div class="py-2 px-3">
 		<div class="w-full flex justify-center items-center gap-x-5">
@@ -67,7 +69,7 @@
 		</form>
 		<form class="button-array" action="?/select.prompt.randomize" method="POST" use:enhance>
 			<input type="text" name={SESSION} value={JSON.stringify($data)} hidden />
-			<button type="submit" class="btn variant-filled selection-button">New</button>
+			<button type="submit" class="btn variant-filled selection-button">Shuffle</button>
 		</form>
 		<div class="button-array">
 			<button
@@ -82,11 +84,11 @@
 		<span class="text-primary-400">dasher</span>
 		<span>you must either </span>
 		<span class="text-primary-400">accept</span>
-		<span> the current {prompt}, generate a </span>
+		<span> the current {prompt}, shuffle to get a </span>
 		<span class="text-primary-400">new</span>
-		<span> random {prompt} or enter your own </span>
+		<span> random prompt, or enter your own </span>
 		<span class="text-primary-400">custom</span>
-		<span> {prompt} before proceeding. You may also want to set the </span>
+		<span> prompt before proceeding. You may also want to set the </span>
 		<span class="text-primary-400">timer</span>
 		<span>that will determine how much time the guessers will be given</span>
 	</div>

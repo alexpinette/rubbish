@@ -46,12 +46,14 @@
 	$: submitted = Object.keys($guesses).includes(user);
 	$: message = isDasher
 		? 'Wait for guesser submissions...'
-		: `Guess the ${response} of the below ${prompt}`;
+		: `Guess the ${response} of the ${prompt} shown on the screen`;
 	onMount(() => setInterval(() => seconds--, 1000));
 </script>
 
 <p class="text-lg text-center pb-5">{message}</p>
-<Prompter withInfo={true} />
+{#if isDasher}
+	<Prompter withInfo={true} />
+{/if}
 <form
 	bind:this={form}
 	class="text-center py-2 px-5"
@@ -66,6 +68,14 @@
 		<p class="italic">Your guess: "{submittedGuess}"</p>
 	{/if}
 	{#if !isDasher && seconds > 0 && !submitted}
+		<!-- Timer -->
+		<div class="text-lg text-center mb-4">
+			<span>Time remaining: </span>
+			<span class="font-bold">{seconds} seconds</span>
+			<p class="text-xs py-2 text-primary-400">
+				If you fail to submit a guess in time, your guess will not be included in this round.
+			</p>
+		</div>
 		<textarea
 			bind:value={guess}
 			class="textarea mt-5 mb-5"
@@ -109,20 +119,10 @@
 	{/if}
 </form>
 <div class="text-lg text-center pt-5">
-	<!-- Timer -->
-	{#if seconds > 0 && guessing > 0}
-		<span>Time remaining: </span>
-		<span class="font-bold">{seconds} seconds</span>
-		{#if !isDasher}
-			<p class="text-xs py-2 text-primary-400">
-				If you fail to submit a definition in time, one will be submitted for you automatically, but
-				you will not be able to gain any points for it!
-			</p>
-		{/if}
-	{:else if guessing === 0}
+	{#if guessing === 0}
 		<p class="font-bold">All guesses submitted!</p>
 		<p>Wait for the dasher to continue</p>
-	{:else}
+	{:else if seconds <= 0}
 		<p class="font-bold">Time is up!</p>
 	{/if}
 	{#if isDasher && (guessing === 0 || seconds <= 0)}

@@ -8,33 +8,14 @@ import {
 	GUESSES,
 	ROUND_STATES,
 	SCOREBOARD,
-	SELECTED_GROUP,
 	STATE,
-	USERNAME,
 	VOTES,
 } from '$lib/constants';
 import { parseSessionRequest } from '$lib/game/helpers';
 import { getRoundScores } from '$lib/score';
 
 /**
- * Cast a vote
- * @type {SessionAction}
- */
-export async function cast(cookies, params, request) {
-	const { form, sm } = await parseSessionRequest(cookies, params, request);
-	const user = String(cookies.get(USERNAME));
-	
-	// Prevent host from casting votes
-	if (sm.session.creator === user && !Object.keys(sm.session.scoreboard ?? {}).includes(user)) {
-		throw new Error('Host cannot cast votes');
-	}
-	
-	const group = String(form.get(SELECTED_GROUP));
-	await sm.roundRef.update({ [`${VOTES}/${user}`]: group });
-}
-
-/**
- * Proceed after voting
+ * Proceed from reveal to tally (calculate and apply scores)
  * @type {SessionAction}
  */
 export async function proceed(cookies, params, request) {
@@ -44,8 +25,10 @@ export async function proceed(cookies, params, request) {
 	const scoreboard = JSON.parse(String(form.get(SCOREBOARD)) || '{}');
 	const correct = JSON.parse(String(form.get(CORRECT)) || '[]');
 	const dasher = String(form.get(DASHER) || '');
-	// Store scores but don't update scoreboard yet - wait for reveal stage
+	const scores = getRoundScores(dasher, votes, guesses, correct, scoreboard);
 	await sm.sessionRef.update({
-		[`${sm.roundPath.current}/${STATE}`]: ROUND_STATES.REVEAL,
+		[`${SCOREBOARD}`]: scores,
+		[`${sm.roundPath.current}/${STATE}`]: ROUND_STATES.TALLY,
 	});
 }
+

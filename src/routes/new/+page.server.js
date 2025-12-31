@@ -4,6 +4,7 @@
 
 import config from '$lib/config';
 import {
+	CLIENT_TYPES,
 	DEFAULT_SCORE,
 	INITIAL_SESSION_STATE,
 	SESSION_ID,
@@ -23,9 +24,9 @@ export const actions = {
 		validateToken(cookies);
 		const data = await request.formData();
 		const uid = String(cookies.get(UID));
-		const creator = String(data.get(USERNAME));
+		// Host doesn't need a username, use "Host" as default
+		const creator = String(data.get(USERNAME) || 'Host');
 		const limit = Number(data.get('round-slider'));
-		const ais = Number(data.get('ai-slider'));
 		const categories = config.categories
 			.filter((category) => {
 				const converted = 'slider-' + category.name.toLowerCase().replace(/ /g, '-');
@@ -38,12 +39,12 @@ export const actions = {
 		const newSessionState = {
 			...INITIAL_SESSION_STATE,
 			state: SESSION_STATES.INITIATED,
-			scoreboard: { [creator]: DEFAULT_SCORE },
+			scoreboard: {}, // No players yet - first player to join will become host
 			uids: { [uid]: true },
 			creator,
 			limit,
-			ais,
 			categories,
+			clientTypes: {}, // Host will be assigned when first player joins
 		};
 		const sessionId = await createNewSessionId();
 		client.capture({

@@ -8,10 +8,13 @@
  * @typedef {'INITIATED'|'STARTED'|'FINISHED'|'LOADING'|'UNKNOWN'} SessionState
  *
  * Possible round states
- * @typedef {'SELECT'|'GUESS'|'MARK'|'GROUP'|'VOTE'|'TALLY'|'LOADING'|'UNKNOWN'} RoundState
+ * @typedef {'SELECT'|'GUESS'|'MARK'|'GROUP'|'VOTE'|'REVEAL'|'TALLY'|'LOADING'|'UNKNOWN'} RoundState
  *
  * Inactive player states
  * @typedef {'KICKED'|'OUTSIDER'|'READY'|'LOADING'|'UNKNOWN'} PlayerState
+ *
+ * Client types
+ * @typedef {'HOST'|'PLAYER'|'SPECTATOR'} ClientType
  *
  * Reference types
  * @typedef {'session'|'round'} Ref
@@ -25,12 +28,14 @@
  * @property {string} creator - Username of session creator
  * @property {number} limit - Round limit
  * @property {number} current - Current round
- * @property {number} ais - Number of AI guesses
  * @property {Object<string, boolean>} uids - Allowed user IDs
  * @property {Category[]} categories - Categories included
  * @property {Scoreboard} scoreboard - A mapping between players and their most recent scores
  * @property {Object.<number, Round>} rounds - Round data
  * @property {Object.<string, string>} kicked - Kicked players: kicked as key and kicker as value
+ * @property {Object.<string, ClientType>} [clientTypes] - Client types: username as key and ClientType as value
+ * @property {Object.<string, boolean>} [spectators] - Spectators: username as key
+ * @property {string} [hostPlayer] - Username of the first player who joined (can start the game)
  *
  * Round data structure
  * @typedef {Object} Round

@@ -7,6 +7,7 @@ export default {
 	toastTimeout: 5000,
 	maxUsernameLength: 12,
 	minPlayersRequired: 3,
+	maxPlayers: 8,
 	customPrompt: {
 		minPromptLength: 2,
 		maxPromptLength: 64,
@@ -20,18 +21,13 @@ export default {
 		max: 120,
 	},
 	sessionId: {
-		numCharacters: 5,
-		numIntegers: 3,
+		numCharacters: 4,
+		numIntegers: 0,
 	},
 	rounds: {
 		default: 4,
 		min: 4,
 		max: 15,
-	},
-	ais: {
-		default: 0,
-		min: 0,
-		max: 3,
 	},
 	categories: [
 		{

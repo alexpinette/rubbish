@@ -3,7 +3,7 @@
  * @typedef {import("$lib/types").Round} Round
  */
 
-import { INITIAL_SESSION_STATE } from '$lib/constants';
+import { CLIENT_TYPES, INITIAL_SESSION_STATE } from '$lib/constants';
 import { derived, writable } from 'svelte/store';
 
 export const sessionData = writable(INITIAL_SESSION_STATE);
@@ -32,7 +32,12 @@ export const session = {
 	players: derived(
 		sessionData,
 		/** @param {Session} $data */
-		($data) => Object.keys($data.scoreboard),
+		($data) => {
+			const scoreboardPlayers = Object.keys($data.scoreboard ?? {});
+			const clientTypes = $data.clientTypes ?? {};
+			// Filter out display-only HOST client types from players list
+			return scoreboardPlayers.filter((player) => clientTypes[player] !== CLIENT_TYPES.HOST);
+		},
 	),
 	scoreboard: derived(
 		sessionData,
@@ -49,15 +54,15 @@ export const session = {
 		/** @param {Session} $data */
 		($data) => $data.categories,
 	),
-	ais: derived(
-		sessionData,
-		/** @param {Session} $data */
-		($data) => $data.ais,
-	),
 	kicked: derived(
 		sessionData,
 		/** @param {Session} $data */
 		($data) => $data.kicked,
+	),
+	hostPlayer: derived(
+		sessionData,
+		/** @param {Session} $data */
+		($data) => $data.hostPlayer,
 	),
 };
 

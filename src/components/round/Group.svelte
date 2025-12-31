@@ -54,7 +54,9 @@
 	};
 </script>
 
-<Prompter withInfo={false} />
+{#if userIsDasher}
+	<Prompter withInfo={false} />
+{/if}
 {#if !userIsDasher}
 	<p class="text-center pt-5">The dasher is grouping responses...</p>
 	<p class="text-center text-xs pt-2">

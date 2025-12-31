@@ -2,7 +2,7 @@
  * @typedef {import('$lib/types').SessionAction} SessionAction
  */
 
-import { CATEGORY, PROMPT, RESPONSE, ROUND_STATES, TIMER } from '$lib/constants';
+import { CATEGORY, PROMPT, RESPONSE, ROUND_STATES, TIMER, USERNAME } from '$lib/constants';
 import { parseSessionRequest } from '$lib/game/helpers';
 
 export const prompt = {
@@ -12,6 +12,13 @@ export const prompt = {
 	 */
 	customize: async (cookies, params, request) => {
 		const { form, sm } = await parseSessionRequest(cookies, params, request);
+		const user = String(cookies.get(USERNAME));
+		
+		// Only dasher (who is a player, not host) can customize prompts
+		if (sm.round.dasher !== user) {
+			throw new Error('Only the dasher can customize prompts');
+		}
+		
 		await sm.roundRef.update({
 			prompt: form.get(PROMPT),
 			response: form.get(RESPONSE),
@@ -25,6 +32,13 @@ export const prompt = {
 	 */
 	accept: async (cookies, params, request) => {
 		const { form, sm } = await parseSessionRequest(cookies, params, request);
+		const user = String(cookies.get(USERNAME));
+		
+		// Only dasher (who is a player, not host) can accept prompts
+		if (sm.round.dasher !== user) {
+			throw new Error('Only the dasher can accept prompts');
+		}
+		
 		const timer = Number(form.get(TIMER));
 		const time = new Date().getTime() + timer * 1000;
 		await sm.roundRef.update({ time, state: ROUND_STATES.GUESS });
@@ -35,6 +49,13 @@ export const prompt = {
 	 */
 	randomize: async (cookies, params, request) => {
 		const { sm } = await parseSessionRequest(cookies, params, request);
+		const user = String(cookies.get(USERNAME));
+		
+		// Only dasher (who is a player, not host) can randomize prompts
+		if (sm.round.dasher !== user) {
+			throw new Error('Only the dasher can randomize prompts');
+		}
+		
 		const { category: randomCategory, pair: randomPair } = await sm.randomPair();
 		await sm.roundRef.update({
 			prompt: randomPair.prompt,

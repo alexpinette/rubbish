@@ -10,31 +10,37 @@
 	let usernameRegex = /^[a-zA-Z][a-zA-Z0-9-]{0,11}$/;
 	export let submitButtonEnabled = true;
 	export let username = '';
-	$: isValidUsername = usernameRegex.test(username);
+	export let isHost = false; // Host doesn't need username
+	$: isValidUsername = isHost || usernameRegex.test(username);
 	$: isButtonDisabled = !isValidUsername || !submitButtonEnabled;
 	$: buttonVariant = getButtonVariant(isButtonDisabled);
 	$: if ($page.form?.message) handleError(toastStore, new Error($page.form.message));
 </script>
 
 <form method="POST" action="?/enter" use:enhance on:submit={() => localStorage.clear()}>
-	<!-- Username entry -->
-	<label class="label">
-		<span class="font-bold small-gap">Your Username</span>
-		<input
-			class="input"
-			title="username"
-			name="username"
-			type="text"
-			placeholder="Player1"
-			bind:value={username}
-			required
-		/>
-		{#if !isValidUsername}
-			<p class="text-sm italic text-tertiary-700">
-				{config.maxUsernameLength} letters (must start with it), numbers and dashes
-			</p>
-		{/if}
-	</label>
+	<!-- Username entry - only show for non-hosts -->
+	{#if !isHost}
+		<label class="label">
+			<span class="font-bold small-gap">Your Username</span>
+			<input
+				class="input"
+				title="username"
+				name="username"
+				type="text"
+				placeholder="Player1"
+				bind:value={username}
+				required
+			/>
+			{#if !isValidUsername && username.length > 0}
+				<p class="text-sm italic text-tertiary-700">
+					{config.maxUsernameLength} letters (must start with it), numbers and dashes
+				</p>
+			{/if}
+		</label>
+	{:else}
+		<!-- Hidden field for host - use a default or empty value -->
+		<input type="hidden" name="username" value="Host" />
+	{/if}
 	<slot />
 	<!-- Submit button -->
 	<button
@@ -42,7 +48,7 @@
 		disabled={isButtonDisabled}
 		class="{buttonVariant} btn-xl rounded-lg w-full mb-5">Go!</button
 	>
-	{#if isButtonDisabled}
+	{#if isButtonDisabled && !isHost}
 		<p class="text-sm italic text-center pb-2 text-tertiary-700">
 			Valid username required to proceed!
 		</p>

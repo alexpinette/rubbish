@@ -1,4 +1,4 @@
-import { DEFAULT_SCORE, SCOREBOARD, SESSION_ID, SESSION_STATES, UID, USERNAME } from '$lib/constants';
+import { CLIENT_TYPES, DEFAULT_HOST_PLAYER, DEFAULT_SCORE, SCOREBOARD, SESSION_ID, SESSION_STATES, UID, USERNAME } from '$lib/constants';
 import { dbRef, getSession, sessionIdExists, validateToken } from '$lib/firebase/server';
 import { fail, redirect } from '@sveltejs/kit';
 import { enquire } from '$lib/contact.js';
@@ -12,29 +12,55 @@ export const actions = {
 		const username = String(data.get(USERNAME));
 		const sessionId = String(data.get(SESSION_ID));
 		const uid = String(cookies.get(UID));
+		const clientType = String(data.get('clientType') || CLIENT_TYPES.PLAYER);
+		const isSpectator = clientType === CLIENT_TYPES.SPECTATOR;
+		
 		if (!(await sessionIdExists(sessionId)))
 			return fail(400, { success: false, message: 'Session does not exist' });
 		const session = await getSession(sessionId);
 		const players = Object.prototype.hasOwnProperty.call(session, SCOREBOARD)
 			? Object.keys(session.scoreboard)
 			: [];
-		if (players.includes(username))
+		const spectators = Object.keys(session.spectators ?? {});
+		const clientTypes = session.clientTypes ?? {};
+		
+		// Check if username already exists as player or spectator
+		if (players.includes(username) || spectators.includes(username))
 			return fail(400, { success: false, message: 'Username already exists' });
-		// Note: We allow kicked users to rejoin if session hasn't started yet
-		// This helps users who lost their session due to technical issues
-		// The kicked check is only enforced for already-started sessions
+		
 		// Check if this device (uid) is already in the session
-		// If uid exists but username is not in scoreboard, they were likely kicked or left
-		// This prevents kicked users from rejoining with a different username on the same device
-		if (Object.keys(session.uids ?? {}).includes(uid) && !players.includes(username)) {
+		if (Object.keys(session.uids ?? {}).includes(uid) && !players.includes(username) && !spectators.includes(username)) {
 			return fail(400, { success: false, message: 'This device is already associated with this session. You cannot rejoin with a different username.' });
 		}
+		
 		if (session.state !== SESSION_STATES.INITIATED)
 			return fail(400, { success: false, message: 'Session has already started' });
-		await dbRef.child(sessionId).update({
-			[`${SCOREBOARD}/${username}`]: DEFAULT_SCORE,
+		
+		// Update session based on client type
+		const updates = {
 			[`uids/${uid}`]: true,
-		});
+			[`clientTypes/${username}`]: clientType,
+		};
+		
+		if (isSpectator) {
+			// Add to spectators, not scoreboard
+			updates[`spectators/${username}`] = true;
+		} else {
+			// Add to scoreboard as player
+			updates[`${SCOREBOARD}/${username}`] = DEFAULT_SCORE;
+			
+			// Check if this is the first player to join (no players in scoreboard yet)
+			// AND if hostPlayer hasn't been set yet (either undefined or still the default UNKNOWN)
+			const isFirstPlayer = Object.keys(session.scoreboard ?? {}).length === 0;
+			const hostPlayerNotSet = !session.hostPlayer || session.hostPlayer === DEFAULT_HOST_PLAYER || session.hostPlayer === 'UNKNOWN';
+			
+			// If this is the first player and hostPlayer hasn't been set, set them as the host player
+			if (isFirstPlayer && hostPlayerNotSet) {
+				updates['hostPlayer'] = username;
+			}
+		}
+		
+		await dbRef.child(sessionId).update(updates);
 		cookies.set(USERNAME, username, { path: '/' });
 		cookies.set(SESSION_ID, sessionId, { path: '/' });
 		throw redirect(303, `/${sessionId}`);

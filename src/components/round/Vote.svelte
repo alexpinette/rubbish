@@ -47,7 +47,6 @@
 	let selectedResponse = shuffledGuesses.find(({ group }) => group === $votes[user])?.index ?? -1;
 	let userWasCorrect = correctGuessers.includes(user);
 	let doublesExist = Object.values(guessSpecs).some((g) => g.double);
-	$: aisExist = $data.ais > 0;
 	$: selectedGroup = shuffledGuesses.find(({ index }) => index === selectedResponse);
 	$: stillVoting = $players.filter(
 		(player) => !(player in $votes) && player !== $dasher && !correctGuessers.includes(player),
@@ -59,11 +58,12 @@
 	}, /** @type {Object.<string, string[]>} */ ({}));
 </script>
 
-<Prompter withInfo={false} />
+{#if userIsDasher}
+	<Prompter withInfo={false} />
+{/if}
 <p class="text-center text-xs pt-5 italic">
-	Voting results will become available after you cast your vote. Dasher and those with correct
-	guesses in the previous stage are uneligible to vote and they will see voting results immediately
-	so don't tell the others what you see!
+	Voting results will be revealed on the host screen after all votes are cast. Dasher and those with correct
+	guesses in the previous stage are uneligible to vote.
 </p>
 {#if userIsDasher}
 	<p class="text-center pt-5">Wait for guessers to vote</p>
@@ -72,7 +72,7 @@
 {:else if userWasCorrect}
 	<p class="text-center pt-5 font-bold">Your guess was correct! Wait for the others to vote...</p>
 {:else}
-	<p class="text-center pt-5">Guess the correct {prompt}</p>
+	<p class="text-center pt-5">Guess the correct answer</p>
 {/if}
 <span class="inline-flex small-gap gap-x-1 items-center justify-center w-full">
 	<span class="text-sm"><Fa icon={faCircleExclamation} /></span>
@@ -102,7 +102,7 @@
 						? 'border-primary-500 border-2 bg-primary-50 dark:bg-primary-900/20'
 						: 'border-tertiary-500'}"
 				>
-					{#if userIsDasher || userHasVoted || userWasCorrect}
+					{#if userIsDasher || userWasCorrect}
 						<div class="card-header text-xs underline">
 							{group === TRUE_RESPONSE
 								? `Correct ${prompt}`
@@ -111,7 +111,7 @@
 					{/if}
 					<section class="py-10 mx-5 italic text-center">{content.response}</section>
 					<footer class="card-footer">
-						{#if userIsDasher || userHasVoted || userWasCorrect}
+						{#if userIsDasher || userWasCorrect}
 							<p>Voters: {swappedVotes[group] ? swappedVotes[group].join(', ') : 'No votes'}</p>
 						{/if}
 						{#if content.yours}
@@ -148,17 +148,11 @@
 {#if userIsDasher && stillVoting.length > 0}
 	<p class="text-center pb-5">Wait for guessers to cast their votes...</p>
 {/if}
-{#if (aisExist || doublesExist) && (userIsDasher || userHasVoted || userWasCorrect)}
+{#if doublesExist && (userIsDasher || userWasCorrect)}
 	<span class="inline-flex small-gap gap-x-1 items-center justify-center w-full">
 		<span class="text-sm"><Fa icon={faCircleExclamation} /></span>
-		{#if doublesExist}
-			<span class="text-xs text-primary-400">DB: </span>
-			<span class="text-xs">Double Bluff </span>
-		{/if}
-		{#if aisExist}
-			<span class="text-xs text-primary-400">NPC: </span>
-			<span class="text-xs">Auto-generated</span>
-		{/if}
+		<span class="text-xs text-primary-400">DB: </span>
+		<span class="text-xs">Double Bluff </span>
 	</span>
 {/if}
 {#if stillVoting.length > 0}

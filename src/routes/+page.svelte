@@ -16,13 +16,13 @@
 	<div class="flex flex-col items-center justify-center space-y-5 p-10">
 		<h1 class="h1">Menu</h1>
 		<button
-			name="start-game"
+			name="host-game"
 			type="button"
 			class="variant-filled action-button"
-			on:click={() => goto('/new')}>Start Game</button
+			on:click={() => goto('/new')}>Host Game</button
 		>
 		<button
-			name="new-game"
+			name="join-game"
 			type="button"
 			class="variant-filled action-button"
 			on:click={() => goto('/join')}>Join Game</button

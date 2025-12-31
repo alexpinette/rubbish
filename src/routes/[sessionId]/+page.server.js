@@ -7,6 +7,7 @@ import { submit as guessSubmit, proceed as guessProceed } from '$lib/game/guess'
 import { proceed as markProceed } from '$lib/game/mark';
 import { proceed as groupProceed } from '$lib/game/group';
 import { cast as voteCast, proceed as voteProceed } from '$lib/game/vote';
+import { proceed as revealProceed } from '$lib/game/reveal';
 import { proceed as tallyProceed } from '$lib/game/tally';
 import { enquire } from '$lib/contact';
 import { loadVocabs } from '$lib/vocab.js';
@@ -32,6 +33,7 @@ const actionMap = {
 	'group.continue': groupProceed,
 	'vote.cast': voteCast,
 	'vote.continue': voteProceed,
+	'reveal.proceed': revealProceed,
 	'tally.continue': tallyProceed,
 };
 

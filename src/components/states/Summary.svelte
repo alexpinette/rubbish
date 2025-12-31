@@ -4,43 +4,23 @@
 	 */
 	import { getContext, onMount } from 'svelte';
 	import { session } from '$lib/store';
-	const { scoreboard } = session;
-	import { SESSION_ID, USERNAME } from '$lib/constants';
+	const { scoreboard, data } = session;
+	import { SESSION_ID, USERNAME, CLIENT_TYPES } from '$lib/constants';
 	import Score from '../parts/Score.svelte';
 	import { Confetti } from 'svelte-confetti';
-	import Fa from 'svelte-fa';
-	import { faThumbsDown, faThumbsUp } from '@fortawesome/free-solid-svg-icons';
-	import { enhance } from '$app/forms';
-	import { handleInfo, returnHome } from '$lib/utils';
+	import { returnHome } from '$lib/utils';
 	import posthog from 'posthog-js';
-	import { FEEDBACK } from '$lib/constants';
-	import { getToastStore } from '@skeletonlabs/skeleton';
+	import Header from '../globals/Header.svelte';
 
-	const toastStore = getToastStore();
 	let user = getContext(USERNAME);
-	let feedbackVoteProvided = true;
-	let feedbackTextProvided = true;
-	/** @type {string} */ let feedbackText = '';
 
-	const positiveFeedback = () => {
-		posthog.capture('feedback_vote', { type: 'positive' });
-		feedbackVoteProvided = true;
-		localStorage.setItem('feedback_vote', 'provided');
-		handleInfo(toastStore, 'Thumbs up submitted!');
-	};
-	const negativeFeedback = () => {
-		posthog.capture('feedback_vote', { type: 'negative' });
-		feedbackVoteProvided = true;
-		localStorage.setItem('feedback_vote', 'provided');
-		handleInfo(toastStore, 'Thumbs down submitted!');
-	};
-
-	const submitFeedback = () => {
-		posthog.capture('feedback_submitted');
-		feedbackTextProvided = true;
-		localStorage.setItem('feedback_text', 'provided');
-		handleInfo(toastStore, 'Feedback submitted!');
-	};
+	// Check if this is a host/spectator view
+	// Host is the creator who is not in the scoreboard, or has explicit HOST client type
+	// When Summary is rendered from Host component, the creator is the host
+	$: isHostView =
+		$data?.clientTypes?.[user] === CLIENT_TYPES.HOST ||
+		Object.keys($data?.spectators ?? {}).includes(user) ||
+		($data?.creator === user && !Object.keys($data?.scoreboard ?? {}).includes(user));
 
 	/**
 	 * Get the highest scorers
@@ -65,53 +45,210 @@
 	const winner = highestScores.length === 1 ? highestScores[0] : highestScores.join(', ');
 
 	onMount(() => {
-		feedbackVoteProvided = localStorage.getItem('feedback_vote') !== null;
-		feedbackTextProvided = localStorage.getItem('feedback_text') !== null;
 		posthog.capture('game_completed');
 	});
 </script>
 
-{#if highestScores.length === 1}
-	<h3 class="h3 text-center">The winner is {winner}!</h3>
+{#if isHostView}
+	<!-- Host Summary Screen -->
+	<div class="summary-host">
+		<!-- Logo -->
+		<div class="logo-section">
+			<Header />
+		</div>
+
+		<div class="winner-announcement">
+			{#if highestScores.length === 1}
+				<h1 class="winner-title">The winner is {winner}!</h1>
+			{:else}
+				<h1 class="winner-title">The winners are {winner}!</h1>
+			{/if}
+			<div class="confetti-container">
+				<Confetti size={10} duration={5000} infinite={false} amount={100} />
+			</div>
+		</div>
+
+		<div class="final-scores">
+			<Score showCheatsheet={false} />
+		</div>
+
+		<div class="return-home-section">
+			<button
+				type="button"
+				class="btn btn-lg variant-filled my-10"
+				on:click={() => returnHome(USERNAME, SESSION_ID)}>Return home</button
+			>
+		</div>
+	</div>
 {:else}
-	<h3 class="h3 text-center">The winners are {winner}!</h3>
-{/if}
-<div class="flex justify-center items-center pt-5">
-	<Confetti size={10} duration={5000} infinite={false} amount={100} />
-</div>
-<Score />
-{#if !feedbackVoteProvided}
-	<p class="text-lg text-center pt-5">Did you have fun?</p>
-	<div class="flex justify-center items-center py-5 gap-x-1">
-		<button type="button" class="btn btn-lg variant-filled-success" on:click={positiveFeedback}>
-			<Fa icon={faThumbsUp} size="lg" />
-		</button>
-		<button type="button" class="btn btn-lg variant-filled-error" on:click={negativeFeedback}>
-			<Fa icon={faThumbsDown} size="lg" />
-		</button>
+	<!-- Player Summary Screen -->
+	<div class="summary-player">
+		<div class="thanks-message">
+			<h1 class="thanks-title">Thanks for playing!</h1>
+			<p class="thanks-subtitle">Check the screen for final scores</p>
+		</div>
+		<div class="return-home-section">
+			<button
+				type="button"
+				class="btn btn-lg variant-filled my-10"
+				on:click={() => returnHome(USERNAME, SESSION_ID)}>Return home</button
+			>
+		</div>
 	</div>
 {/if}
-{#if !feedbackTextProvided}
-	<p class="text-center pb-2">Do you have any feedback to help us improve?</p>
-	<form method="POST" action="?/feedback" use:enhance on:submit={submitFeedback}>
-		<textarea
-			bind:value={feedbackText}
-			class="textarea mb-5"
-			name={FEEDBACK}
-			rows="4"
-			placeholder="It would have been nice if..."
-		/>
-		<button
-			class="btn variant-filled btn-lg rounded-lg w-full"
-			type="submit"
-			disabled={feedbackText.length < 10}>Submit</button
-		>
-	</form>
-{/if}
-<div class="text-center">
-	<button
-		type="button"
-		class="btn btn-sm variant-ringed my-10"
-		on:click={() => returnHome(USERNAME, SESSION_ID)}>Return home</button
-	>
-</div>
+
+<style>
+	/* Host Summary Styles - Full screen like other host views */
+	:global(body:has(.summary-host)) {
+		overflow: hidden;
+		margin: 0;
+		padding: 0;
+	}
+
+	:global(
+			body:has(.summary-host)
+				[data-sveltekit-preload-data]
+				> div
+				> :global(.app-shell)
+				> :first-child:not(.summary-host *)
+		),
+	:global(
+			body:has(.summary-host)
+				[data-sveltekit-preload-data]
+				> div
+				> :global(.app-shell)
+				> [slot='footer']
+		),
+	:global(body:has(.summary-host) header:not(.summary-host *)),
+	:global(body:has(.summary-host) footer:not(.summary-host *)),
+	:global(body:has(.summary-host) .logo-container:not(.summary-host .logo-container)) {
+		display: none !important;
+	}
+
+	:global(body:has(.summary-host) .min-w-2xs),
+	:global(body:has(.summary-host) .max-w-lg) {
+		max-width: none !important;
+		width: 100vw !important;
+		padding: 0 !important;
+		margin: 0 !important;
+	}
+
+	:global(body:has(.summary-host) [data-sveltekit-preload-data]) {
+		max-width: none !important;
+		width: 100vw !important;
+	}
+
+	.summary-host {
+		width: 100vw;
+		height: 100vh;
+		@apply p-8;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: flex-start;
+		@apply bg-surface-50 dark:bg-surface-900;
+		position: fixed;
+		top: 0;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		z-index: 1000;
+		overflow-y: auto;
+		margin: 0;
+		box-sizing: border-box;
+		gap: 1.5rem;
+	}
+
+	.logo-section {
+		flex-shrink: 0;
+		@apply mb-2 flex items-center justify-center;
+	}
+
+	.winner-announcement {
+		flex-shrink: 0;
+		@apply mb-2 w-full;
+		max-width: 90vw;
+		text-align: center;
+	}
+
+	.winner-title {
+		font-size: clamp(1.75rem, 4vh, 3rem);
+		@apply font-semibold mb-3;
+		@apply text-primary-600 dark:text-primary-400;
+	}
+
+	.confetti-container {
+		@apply flex justify-center items-center pt-2;
+	}
+
+	.final-scores {
+		flex: 1;
+		width: 100%;
+		max-width: 90vw;
+		text-align: center;
+		@apply mb-2;
+		display: flex;
+		flex-direction: column;
+		justify-content: flex-start;
+		align-items: center;
+		min-height: 0;
+	}
+
+	.final-scores :global(.tally-container) {
+		@apply w-full;
+		max-width: 100%;
+	}
+
+	.final-scores :global(.tally-columns) {
+		grid-template-columns: 1fr; /* Single column for final scores */
+	}
+
+	.final-scores :global(.players-grid) {
+		grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+		gap: 2.5rem;
+	}
+
+	.return-home-section {
+		flex-shrink: 0;
+		@apply text-center w-full;
+		@apply my-4;
+	}
+
+	/* Player Summary Styles */
+	.summary-player {
+		@apply w-full max-w-2xl mx-auto;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		min-height: 70vh;
+		padding: 3rem 1.5rem;
+		gap: 2.5rem;
+	}
+
+	.thanks-message {
+		@apply text-center;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 1rem;
+	}
+
+	.thanks-title {
+		font-size: clamp(2rem, 5vh, 3rem);
+		@apply font-bold text-primary-600 dark:text-primary-400;
+		margin: 0;
+		line-height: 1.2;
+	}
+
+	.thanks-subtitle {
+		font-size: clamp(1.125rem, 2.5vh, 1.5rem);
+		@apply text-surface-600 dark:text-surface-400;
+		margin: 0;
+		line-height: 1.5;
+	}
+
+	.summary-player .return-home-section {
+		@apply mt-4;
+	}
+</style>

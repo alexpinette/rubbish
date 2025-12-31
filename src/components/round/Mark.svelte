@@ -19,11 +19,13 @@
 	$: ({ response } = getCategoryWords($category));
 </script>
 
-<Prompter withInfo={true} />
+{#if userIsDasher}
+	<Prompter withInfo={true} />
+{/if}
 {#if !userIsDasher}
 	<p class="text-center pt-5">The dasher is marking responses...</p>
 	<p class="text-center pt-5 text-sm">
-		If your response is close enough to the official {response}, it will be marked by the dasher as
+		If your response is close enough to the official answer, it will be marked by the dasher as
 		correct and you will be awarded points for it!
 	</p>
 {/if}

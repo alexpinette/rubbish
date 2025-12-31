@@ -20,9 +20,15 @@ import { getRoundScores } from '$lib/score';
  */
 export async function submit(cookies, params, request) {
 	const { form, sm } = await parseSessionRequest(cookies, params, request);
+	const user = String(cookies.get(USERNAME));
+	
+	// Prevent host from submitting guesses
+	if (sm.session.creator === user && !Object.keys(sm.session.scoreboard ?? {}).includes(user)) {
+		throw new Error('Host cannot submit guesses');
+	}
+	
 	const submission = String(form.get(GUESS));
 	const doubleBluff = Boolean(form.get(DOUBLE_BLUFF));
-	const user = String(cookies.get(USERNAME));
 	const payload = { ...DEFAULT_GUESS, response: submission, double: doubleBluff };
 	await sm.roundRef.update({ [`${GUESSES}/${user}`]: payload });
 }

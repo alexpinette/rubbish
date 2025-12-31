@@ -8,7 +8,7 @@
  * @typedef {import('@sveltejs/kit').Cookies} Cookies
  */
 
-import { DEFAULT_CUSTOM_PROMPT, ROUNDS, ROUND_STATES, SESSION_STATES } from '$lib/constants';
+import { CLIENT_TYPES, DEFAULT_CUSTOM_PROMPT, ROUNDS, ROUND_STATES, SESSION_STATES } from '$lib/constants';
 import config from '$lib/config';
 import { getRandomPair, getPhonyResponse, loadVocabs } from '$lib/vocab';
 import { dbRef } from '$lib/firebase/server';
@@ -33,9 +33,12 @@ export class SessionManager {
 		});
 	}
 
-	/** @returns {string[]} - players in the session */
+	/** @returns {string[]} - players in the session (excludes display-only host) */
 	get players() {
-		return Object.keys(this.session.scoreboard) ?? [];
+		const scoreboardPlayers = Object.keys(this.session.scoreboard ?? {});
+		const clientTypes = this.session.clientTypes ?? {};
+		// Filter out display-only HOST client types from players list
+		return scoreboardPlayers.filter((player) => clientTypes[player] !== CLIENT_TYPES.HOST);
 	}
 
 	/** @returns {Category} */
@@ -100,6 +103,11 @@ export class SessionManager {
 	 */
 	getNextDasher(excluded = []) {
 		const subset = this.players.filter((player) => !excluded.includes(player));
+		// For the first round (current === 0), pick a random dasher
+		// For subsequent rounds, cycle through players
+		if (this.session.current === 0) {
+			return subset[Math.floor(Math.random() * subset.length)];
+		}
 		return subset[this.session.current % subset.length];
 	}
 }

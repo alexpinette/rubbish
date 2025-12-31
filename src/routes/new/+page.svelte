@@ -15,7 +15,6 @@
 	let username = '';
 	let categories = config.categories;
 	let roundsChoice = config.rounds.min;
-	let aiChoice = config.ais.min;
 
 	const drawerStore = getDrawerStore();
 	const drawerSettings = { rounded: 'rounded-xl', position: 'bottom' };
@@ -42,7 +41,7 @@
 			> before you start!</span
 		>
 	</span>
-	<Entry bind:username>
+	<Entry bind:username isHost={true}>
 		<!-- Target rounds -->
 		<div class="small-gap">
 			<RangeSlider
@@ -60,30 +59,21 @@
 			</RangeSlider>
 			<p>We recommend at least 1 round per player</p>
 		</div>
-		<!-- AI guesses selection -->
-		<div class="small-gap">
-			<RangeSlider name="ai-slider" bind:value={aiChoice} max={config.ais.max} step={1} ticked>
-				<div class="flex justify-between items-center">
-					<div class="font-bold">AI Guesses</div>
-					<div class="text-xs">{aiChoice} / {config.ais.max}</div>
-				</div>
-			</RangeSlider>
-			<p>You can add phony AI answers</p>
-		</div>
 		<!-- Categories to include selection -->
 		<div class="small-gap">
 			<div class="font-bold">Categories To Include</div>
 			<div class="small-gap">
 				{#each categories as category}
-					<SlideToggle
-						size="sm"
-						name="slider-{textToId(category.name)}"
-						bind:checked={category.enabled}
-					>
-						<span class="inline-block text-left text-xs xs:text-base">
+					<div class="flex items-center gap-2">
+						<SlideToggle
+							size="sm"
+							name="slider-{textToId(category.name)}"
+							bind:checked={category.enabled}
+						/>
+						<span class="text-left text-xs xs:text-base">
 							<span class="text-primary-500">{category.name}</span>: {category.description}
 						</span>
-					</SlideToggle>
+					</div>
 				{/each}
 			</div>
 		</div>

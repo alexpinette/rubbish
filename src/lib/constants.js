@@ -4,6 +4,7 @@
  * @typedef {import("$lib/types").SessionState} SessionState
  * @typedef {import("$lib/types").RoundState} RoundState
  * @typedef {import("$lib/types").PlayerState} PlayerState
+ * @typedef {import("$lib/types").ClientType} ClientType
  * @typedef {import("$lib/types").Category} Category
  * @typedef {import("$lib/types").Guess} Guess
  * @typedef {import("$lib/types").Scoreboard} Scoreboard
@@ -62,6 +63,7 @@ export const ROUND_STATES = {
 	MARK: 'MARK',
 	GROUP: 'GROUP',
 	VOTE: 'VOTE',
+	REVEAL: 'REVEAL',
 	TALLY: 'TALLY',
 	UNKNOWN: 'UNKNOWN',
 	LOADING: 'LOADING',
@@ -74,6 +76,13 @@ export const PLAYER_STATES = {
 	READY: 'READY',
 	UNKNOWN: 'UNKNOWN',
 	LOADING: 'LOADING',
+};
+
+/** @type {Object.<string, ClientType>} */
+export const CLIENT_TYPES = {
+	HOST: 'HOST',
+	PLAYER: 'PLAYER',
+	SPECTATOR: 'SPECTATOR',
 };
 
 /** @type {Object.<string, Ref>} */
@@ -89,11 +98,14 @@ export const REFS = {
 /** @type {Scoreboard} */ export const DEFAULT_SCOREBOARD = {};
 /** @type {Object.<string, boolean>} */ export const DEFAULT_UIDS = {};
 /** @type {Object.<string, string>} */ export const DEFAULT_KICKED = {};
+/** @type {Object.<string, ClientType>} */ export const DEFAULT_CLIENT_TYPES = {};
+/** @type {Object.<string, boolean>} */ export const DEFAULT_SPECTATORS = {};
 /** @type {Category[]} */ export const DEFAULT_CATEGORIES = [];
 /** @type {Category} */ export const DEFAULT_CATEGORY = 'Rare words';
 /** @type {Object.<string, Guess>} */ export const DEFAULT_GUESSES = {};
 /** @type {Object.<string, string>} */ export const DEFAULT_VOTES = {};
 /** @type {string} */ export const DEFAULT_CREATOR = UNKNOWN;
+/** @type {string} */ export const DEFAULT_HOST_PLAYER = UNKNOWN;
 /** @type {string} */ export const DEFAULT_PROMPT = UNKNOWN;
 /** @type {string} */ export const DEFAULT_RESPONSE = UNKNOWN;
 /** @type {string} */ export const DEFAULT_DASHER = UNKNOWN;
@@ -135,10 +147,12 @@ export const INITIAL_SESSION_STATE = {
 	creator: DEFAULT_CREATOR,
 	limit: config.rounds.default,
 	current: DEFAULT_ROUND_NUMBER,
-	ais: config.ais.default,
 	uids: DEFAULT_UIDS,
 	categories: DEFAULT_CATEGORIES,
 	scoreboard: DEFAULT_SCOREBOARD,
 	rounds: { [DEFAULT_ROUND_NUMBER]: INITIAL_ROUND_STATE },
 	kicked: DEFAULT_KICKED,
+	clientTypes: DEFAULT_CLIENT_TYPES,
+	spectators: DEFAULT_SPECTATORS,
+	hostPlayer: DEFAULT_HOST_PLAYER,
 };

@@ -2,8 +2,8 @@
  * @typedef {import('$lib/types').SessionAction} SessionAction
  */
 
-import { CORRECT, GUESSES, INTERRUPTION, ROUND_STATES, SESSION, STATE } from '$lib/constants';
-import { generateAiGuesses, parseSessionRequest } from '$lib/game/helpers';
+import { CORRECT, GUESSES, INTERRUPTION, ROUND_STATES, SESSION, STATE, USERNAME } from '$lib/constants';
+import { parseSessionRequest } from '$lib/game/helpers';
 import { getRoundScores } from '$lib/score';
 import { client } from '$lib/analytics.js';
 
@@ -13,6 +13,13 @@ import { client } from '$lib/analytics.js';
  */
 export async function proceed(cookies, params, request) {
 	const { form, sm } = await parseSessionRequest(cookies, params, request);
+	const user = String(cookies.get(USERNAME));
+	
+	// Only dasher (who is a player, not host) can mark guesses
+	if (sm.round.dasher !== user) {
+		throw new Error('Only the dasher can mark guesses');
+	}
+	
 	const activeGuesses = sm.players.length - 1;
 	const submissions = Array.from(form.entries()).filter(([key]) => key !== SESSION);
 	const correctUsers = submissions.filter(([_, value]) => value === '1').map(([key]) => key);
@@ -24,9 +31,8 @@ export async function proceed(cookies, params, request) {
 	const allGuessedCorrectly = correctUsers.length === activeGuesses;
 	const incorrectCount = submissions.length - correctUsers.length;
 	const singleSubmission = submissions.length === 1;
-	const aisDisabled = sm.session.ais === 0;
 	const terminate =
-		allGuessedCorrectly || ((fewerThanTwoIncorrectGuesses || singleSubmission) && aisDisabled);
+		allGuessedCorrectly || (fewerThanTwoIncorrectGuesses || singleSubmission);
 	const payload = terminate
 		? getTerminationPayload(sm, correctUsers, correctPayload)
 		: await getContinuationPayload(sm, correctPayload, incorrectCount);
@@ -62,21 +68,9 @@ function getTerminationPayload(sm, correctUsers, correctPayload) {
  * @param {number} incorrectCount - number of incorrect guesses
  */
 async function getContinuationPayload(sm, correctPayload, incorrectCount) {
-	let aiGuesses = {};
 	const nextState = incorrectCount === 1 ? ROUND_STATES.VOTE : ROUND_STATES.GROUP;
-	if (nextState === ROUND_STATES.VOTE) {
-		const phonyResponses = await generateAiGuesses(sm.session.ais, async () => sm.phonyResponse);
-		aiGuesses = Object.entries(phonyResponses).reduce((acc, [key, value]) => {
-			return {
-				...acc,
-				[`${sm.roundPath.current}/${key}`]: value,
-			};
-		}, {});
-	}
 	return {
 		...correctPayload,
-		...aiGuesses,
-		[`${sm.roundPath.current}/${STATE}`]: nextState,
 		[`${sm.roundPath.current}/${STATE}`]: nextState,
 	};
 }

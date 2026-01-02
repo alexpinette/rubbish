@@ -3,16 +3,22 @@
 	import config from '$lib/config';
 	import { session } from '$lib/store';
 	import Header from '../globals/Header.svelte';
+	import PlayerName from '../parts/PlayerName.svelte';
 
 	const { players, host, limit, categories } = session;
 	let sessionId = $page.params.sessionId;
 </script>
 
-<!-- Host Lobby: Public display screen showing room code and player list -->
+	<!-- Host Lobby: Public display screen showing room code and player list -->
 <div class="host-lobby">
+	<!-- Top Header Bar (empty for lobby) -->
+	<div class="host-header-bar"></div>
+
 	<!-- Logo -->
-	<div class="logo-section">
-		<Header />
+	<div class="logo-nav-section">
+		<div class="logo-section">
+			<Header />
+		</div>
 	</div>
 
 	<!-- Room Code - Prominently displayed for players to see -->
@@ -48,7 +54,9 @@
 			{:else}
 				<div class="players-list">
 					{#each $players as player}
-						<div class="player-item">{player}</div>
+						<div class="player-item">
+							<PlayerName {player} />
+						</div>
 					{/each}
 				</div>
 			{/if}
@@ -111,20 +119,45 @@
 		right: 0;
 		bottom: 0;
 		z-index: 1000;
-		overflow-y: auto;
+		overflow: hidden;
 		margin: 0;
 		box-sizing: border-box;
-		gap: 2rem;
+		gap: 1.5rem; /* Reduced gap for tighter spacing */
+		padding-top: 0.5rem; /* Less space since header is empty */
+		/* Lock to 16:9 aspect ratio for TV/monitor */
+		aspect-ratio: 16 / 9;
+		max-width: calc(100vh * 16 / 9);
+		max-height: 100vh;
+		margin-left: auto;
+		margin-right: auto;
+	}
+
+	/* Top Header Bar - Fixed at top (empty for lobby) */
+	.host-header-bar {
+		position: fixed;
+		top: 0;
+		left: 0;
+		right: 0;
+		width: 100%;
+		height: 0;
+		z-index: 10;
+	}
+
+	.logo-nav-section {
+		flex-shrink: 0;
+		@apply w-full flex flex-col items-center justify-center;
+		margin-top: 1rem; /* Less space since header is empty */
+		margin-bottom: 0.5rem;
 	}
 
 	.logo-section {
 		flex-shrink: 0;
-		@apply mb-4 flex items-center justify-center;
+		@apply mb-2 flex items-center justify-center;
 	}
 
 	.section-title {
 		font-size: clamp(1.25rem, 2.5vh, 1.75rem);
-		@apply font-semibold text-surface-700 dark:text-surface-300 mb-4;
+		@apply font-semibold text-surface-700 dark:text-surface-300 mb-3;
 		text-align: center;
 	}
 

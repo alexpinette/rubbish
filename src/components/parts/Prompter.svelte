@@ -40,7 +40,7 @@
 		</div>
 	{/if}
 	<div class="category-text">
-		<span>Category: </span>
+			<span>Category: </span>
 		<span class="category-name">{$category}</span>
 	</div>
 </div>

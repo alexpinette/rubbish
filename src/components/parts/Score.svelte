@@ -5,6 +5,7 @@
 	import { session } from '$lib/store';
 	import { SESSION_STATES } from '$lib/constants';
 	import { SCORE } from '$lib/score';
+	import PlayerName from './PlayerName.svelte';
 	
 	export let showCheatsheet = false;
 	
@@ -59,14 +60,16 @@
 							{/if}
 						</div>
 						<div class="player-info">
-							<div class="player-name">{player}</div>
+							<div class="player-name">
+								<PlayerName {player} showBackground={false} showBorder={false} />
+							</div>
 							<div class="player-score">{score}</div>
 						</div>
 						{#if isLeader}
 							<div class="leader-badge">🏆</div>
 						{/if}
 					</div>
-				{/each}
+			{/each}
 			</div>
 		</div>
 

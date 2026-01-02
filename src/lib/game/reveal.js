@@ -9,6 +9,7 @@ import {
 	ROUND_STATES,
 	SCOREBOARD,
 	STATE,
+	USERNAME,
 	VOTES,
 } from '$lib/constants';
 import { parseSessionRequest } from '$lib/game/helpers';
@@ -20,6 +21,13 @@ import { getRoundScores } from '$lib/score';
  */
 export async function proceed(cookies, params, request) {
 	const { form, sm } = await parseSessionRequest(cookies, params, request);
+	const user = String(cookies.get(USERNAME));
+	
+	// Only dasher (who is a player, not host) can proceed from reveal
+	if (sm.round.dasher !== user) {
+		throw new Error('Only the dasher can proceed from reveal');
+	}
+	
 	const votes = JSON.parse(String(form.get(VOTES)) || '{}');
 	const guesses = JSON.parse(String(form.get(GUESSES)) || '{}');
 	const scoreboard = JSON.parse(String(form.get(SCOREBOARD)) || '{}');

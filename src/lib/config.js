@@ -7,7 +7,7 @@ export default {
 	toastTimeout: 5000,
 	maxUsernameLength: 12,
 	minPlayersRequired: 3,
-	maxPlayers: 8,
+	maxPlayers: 12,
 	customPrompt: {
 		minPromptLength: 2,
 		maxPromptLength: 64,

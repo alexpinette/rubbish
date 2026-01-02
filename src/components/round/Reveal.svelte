@@ -9,8 +9,8 @@
 	const { guesses, dasher, votes, response } = round;
 	const user = getContext(USERNAME);
 	
-	// Check if current user is the host player (can control progression)
-	$: isHostPlayer = $hostPlayer === user && $hostPlayer !== 'UNKNOWN';
+	// Check if current user is the dasher (only dasher can proceed from reveal)
+	$: isDasher = $dasher === user && $dasher !== 'UNKNOWN';
 	
 	// Get correct guessers for form data
 	$: correctGuessers = Object.keys($guesses).filter((player) => $guesses[player].correct);
@@ -31,7 +31,7 @@
 	</p>
 	
 	<!-- Only host player can proceed -->
-	{#if isHostPlayer}
+	{#if isDasher}
 		<form action="?/reveal.proceed" method="POST" use:enhance class="mt-8">
 			<input type="text" name={SESSION} value={JSON.stringify($data)} hidden />
 			<input name={VOTES} value={JSON.stringify($votes)} type="text" hidden />
@@ -45,7 +45,7 @@
 		</form>
 	{:else}
 		<p class="text-center text-lg">
-			Waiting for {$hostPlayer} to continue...
+			Waiting for {$dasher} to continue...
 		</p>
 	{/if}
 </div>

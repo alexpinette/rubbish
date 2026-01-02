@@ -41,7 +41,7 @@
 <div>
 	<!-- Round/Stage Info - Only for Host/Spectator -->
 	{#if isHost || isSpectator}
-		<h1 class="h1 text-center mb-5">Round {$number} of {$limit}</h1>
+	<h1 class="h1 text-center mb-5">Round {$number} of {$limit}</h1>
 	<div class="flex justify-between items-center text-xs max-w-xs sm:max-w-lg mx-auto mb-5">
 		{#each visibleStates as possibleState, index}
 			<span class:highlighted={possibleState === $state}>
@@ -52,9 +52,9 @@
 			{/if}
 		{/each}
 	</div>
-		{#if state !== undefined}
-			<h2 class="h2 text-center py-5">Stage: {toTitleCase($state)}</h2>
-		{/if}
+	{#if state !== undefined}
+		<h2 class="h2 text-center py-5">Stage: {toTitleCase($state)}</h2>
+	{/if}
 	{/if}
 	
 	<!-- Content -->
@@ -63,13 +63,13 @@
 	<!-- Bottom -->
 	<div class="flex flex-col items-center justify-center">
 		{#if isPlayer && !isDasher}
-			<div class="italic text-sm mb-5">
-				Playing as {user}
-			</div>
-			{#if $players.length > config.minPlayersRequired}
-				<button class="btn btn-sm variant-ringed mb-5" type="button" on:click={removePlayer}>
-					Remove player
-				</button>
+		<div class="italic text-sm mb-5">
+			Playing as {user}
+		</div>
+		{#if $players.length > config.minPlayersRequired}
+			<button class="btn btn-sm variant-ringed mb-5" type="button" on:click={removePlayer}>
+				Remove player
+			</button>
 			{/if}
 		{:else if isDasher}
 			<div class="role-chip py-1 px-2 my-5 rounded-lg">

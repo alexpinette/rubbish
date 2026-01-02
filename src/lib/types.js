@@ -36,6 +36,7 @@
  * @property {Object.<string, ClientType>} [clientTypes] - Client types: username as key and ClientType as value
  * @property {Object.<string, boolean>} [spectators] - Spectators: username as key
  * @property {string} [hostPlayer] - Username of the first player who joined (can start the game)
+ * @property {Object.<string, number>} [playerColors] - Player colors: username as key and color index as value
  *
  * Round data structure
  * @typedef {Object} Round

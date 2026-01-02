@@ -65,10 +65,10 @@
 			<div class="small-gap">
 				{#each categories as category}
 					<div class="flex items-center gap-2">
-						<SlideToggle
-							size="sm"
-							name="slider-{textToId(category.name)}"
-							bind:checked={category.enabled}
+					<SlideToggle
+						size="sm"
+						name="slider-{textToId(category.name)}"
+						bind:checked={category.enabled}
 						/>
 						<span class="text-left text-xs xs:text-base">
 							<span class="text-primary-500">{category.name}</span>: {category.description}

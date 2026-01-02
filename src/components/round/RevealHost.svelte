@@ -1,173 +1,549 @@
 <script>
+	import { page } from '$app/stores';
 	import { round, session } from '$lib/store';
-	import { SESSION, CORRECT, DASHER, GUESSES, SCOREBOARD, VOTES, USERNAME } from '$lib/constants';
+	import {
+		SESSION,
+		CORRECT,
+		DASHER,
+		GUESSES,
+		SCOREBOARD,
+		VOTES,
+		USERNAME,
+		TRUE_RESPONSE,
+	} from '$lib/constants';
 	import { enhance } from '$app/forms';
 	import { onMount } from 'svelte';
-	import { fade } from 'svelte/transition';
+	import { fade, fly, scale } from 'svelte/transition';
+	import { quintOut, elasticOut } from 'svelte/easing';
 	import { getContext } from 'svelte';
 	import { getCategoryWords } from '$lib/utils';
+	import Header from '../globals/Header.svelte';
+	import PlayerName from '../parts/PlayerName.svelte';
 
-	const { players, data, scoreboard, hostPlayer } = session;
-	const { guesses, dasher, votes, response, category, prompt } = round;
+	const { players, data, scoreboard, hostPlayer, limit } = session;
+	const { guesses, dasher, votes, response, category, prompt, number } = round;
+	let sessionId = $page.params.sessionId;
 	$: ({ prompt: promptLabel } = getCategoryWords($category));
 	const user = getContext(USERNAME);
 
-	// Check if current user is the host player (can control progression)
-	$: isHostPlayer = $hostPlayer === user && $hostPlayer !== 'UNKNOWN';
+	// Check if current user is the dasher (can control progression from reveal)
+	$: isDasher = $dasher === user && $dasher !== 'UNKNOWN';
 
 	// Get all phony answers (incorrect guesses) with their authors and voters
-	// Sort by vote count (least to most fooled) so most fooled appears last
+	// Sort by vote count (most to least fooled) for reveal order
 	$: phonyAnswers = Object.entries($guesses)
 		.filter(([player, guess]) => player !== $dasher && !guess.correct)
 		.map(([player, guess]) => {
 			// Find all players who voted for this answer's group
+			const guessGroupStr = String(guess.group ?? '').trim();
 			const voters = Object.entries($votes)
-				.filter(([_, group]) => group === guess.group)
+				.filter(([_, group]) => String(group ?? '').trim() === guessGroupStr)
 				.map(([voter]) => voter);
 
 			return {
 				player,
 				response: guess.response,
 				double: guess.double,
-				group: guess.group,
+				// IMPORTANT: keep this as the exact group label (e.g. "Group 5"), not a number.
+				// Votes are stored as that label, so converting to Number() breaks vote matching and scoring.
+				group: guessGroupStr,
 				voters,
 				voteCount: voters.length,
 			};
 		})
-		.sort((a, b) => a.voteCount - b.voteCount); // Sort least to most fooled
+		.sort((a, b) => b.voteCount - a.voteCount); // Sort most to least fooled
 
-	// Get correct guessers for form data
-	$: correctGuessers = Object.keys($guesses).filter((player) => $guesses[player].correct);
+	// Find the maximum vote count to identify top fooling answers
+	$: maxVoteCount =
+		phonyAnswers.length > 0 ? Math.max(...phonyAnswers.map((pa) => pa.voteCount)) : 0;
+
+	// Get players who selected the real answer (correct guessers)
+	$: correctGuessersList = Object.keys($guesses).filter((player) => $guesses[player].correct);
+
+	// Get players who voted for the real answer
+	$: realAnswerVoters = Object.entries($votes)
+		.filter(([_, group]) => {
+			const groupStr = String(group).trim();
+			return groupStr === TRUE_RESPONSE || groupStr === 'True Response';
+		})
+		.map(([voter]) => voter);
+
+	// Combine correct guessers and voters for the real answer (remove duplicates)
+	$: realAnswerPlayers = [...new Set([...correctGuessersList, ...realAnswerVoters])];
+
+	// ---------------------------------------------------------------------------
+	// Responsive sizing helpers (supports up to ~12 players / ~11 phony answers)
+	// ---------------------------------------------------------------------------
+	let /** @type {HTMLDivElement | null} */ answersContainerEl = null;
+	let answersContainerHeight = 0;
+
+	// Answer text scaling heuristic (avoid scroll/cutoff for long answers)
+	$: allAnswerTexts = [$response, ...phonyAnswers.map((pa) => pa.response)];
+	$: maxAnswerLength =
+		allAnswerTexts.length > 0 ? Math.max(...allAnswerTexts.map((t) => t?.length ?? 0)) : 0;
+	// Length-based scaling (keeps long answers readable without scrolling)
+	$: lengthFontScale =
+		maxAnswerLength > 280
+			? 0.7
+			: maxAnswerLength > 220
+				? 0.78
+				: maxAnswerLength > 170
+					? 0.88
+					: maxAnswerLength > 120
+						? 0.98
+						: maxAnswerLength > 80
+							? 1.05
+							: 1.12;
+
+	// ============================================================================
+	// GRID LAYOUT CALCULATION - Brick pattern layout
+	// ============================================================================
+	$: phonyCount = phonyAnswers.length;
+	// Number of phony rows (real row is always row 1)
+	$: phonyRowCount = (() => {
+		if (phonyCount <= 0) return 0;
+		if (phonyCount <= 4) return 1;
+		if (phonyCount <= 8) return 2;
+		return Math.ceil(phonyCount / 4); // 9+ in rows of 4
+	})();
+	$: totalRowCount = 1 + phonyRowCount;
+
+	// Calculate a card height that fits the available container height.
+	// This avoids clipping when there are many answers (e.g., 9-11 phony answers).
+	const GRID_GAP_Y_PX = 8; // 0.5rem
+	$: minCardHeight = answersContainerHeight
+		? Math.max(
+				120,
+				Math.floor((answersContainerHeight - (totalRowCount - 1) * GRID_GAP_Y_PX) / totalRowCount),
+			)
+		: 180;
+
+	// Space-based scaling: when cards are taller (fewer rows / larger screens), allow bigger text.
+	// Clamp to avoid giant fonts on very large screens.
+	$: spaceFontScale = Math.min(1.15, Math.max(0.85, minCardHeight / 180));
+	$: answerFontScale = Math.min(1.2, Math.max(0.7, lengthFontScale * spaceFontScale));
+
+	// Final font-size in pixels (avoid CSS calc() multiplication — not reliably supported across browsers)
+	// Tuned for TV/monitor host display.
+	const BASE_ANSWER_FONT_PX = 20;
+	const MIN_ANSWER_FONT_PX = 18;
+	const MAX_ANSWER_FONT_PX = 24;
+	$: answerFontPx = Math.round(
+		Math.min(
+			MAX_ANSWER_FONT_PX,
+			Math.max(MIN_ANSWER_FONT_PX, BASE_ANSWER_FONT_PX * answerFontScale),
+		),
+	);
+
+	// Determine grid columns based on phony answer count
+	// Use double columns to allow brick pattern positioning (cards can span 2 columns)
+	$: gridCols = (() => {
+		if (phonyCount <= 4) return phonyCount * 2; // 1-4: all in one row, double columns for spacing
+		if (phonyCount === 5) return 6; // 5: 3-2 layout (3 cards in row 2, 2 in row 3)
+		if (phonyCount === 6) return 6; // 6: 3-3 layout
+		if (phonyCount === 7) return 8; // 7: 4-3 layout
+		if (phonyCount === 8) return 8; // 8: 4-4 layout
+		return 8; // 9+: 4 columns max, doubled
+	})();
+
+	// Real answer: always in row 1, centered
+	// For doubled columns, center spans the middle 2 columns
+	// For 6 columns: center is columns 3-4 (middle of 1-6)
+	$: realAnswerColStart = Math.floor((gridCols - 2) / 2) + 1;
+	$: realAnswerColEnd = realAnswerColStart + 2;
+
+	// Calculate phony answer positions (sorted by vote count for final layout)
+	// Brick pattern: partial rows are centered in gaps between cards above
+	$: phonyAnswerPositions = (() => {
+		const positions = [];
+
+		// Determine row structure based on phony count
+		let rowStructure = [];
+		if (phonyCount <= 4) {
+			// All in one row
+			rowStructure = [phonyCount];
+		} else if (phonyCount === 5) {
+			// 3 cards in first phony row, 2 in second (centered in gaps)
+			rowStructure = [3, 2];
+		} else if (phonyCount === 6) {
+			// 3 cards per row
+			rowStructure = [3, 3];
+		} else if (phonyCount === 7) {
+			// 4 cards in first row, 3 in second (centered in gaps)
+			rowStructure = [4, 3];
+		} else if (phonyCount === 8) {
+			// 4 cards per row
+			rowStructure = [4, 4];
+		} else {
+			// 9+: distribute in rows of 4
+			const fullRows = Math.floor(phonyCount / 4);
+			rowStructure = Array(fullRows).fill(4);
+			const remainder = phonyCount % 4;
+			if (remainder > 0) {
+				rowStructure.push(remainder);
+			}
+		}
+
+		let sortedIndex = 0;
+		for (let phonyRow = 0; phonyRow < rowStructure.length; phonyRow++) {
+			const cardsInThisRow = rowStructure[phonyRow];
+			const rowNumber = 2 + phonyRow; // Row 1 is real answer
+			const isPartialRow = phonyRow > 0 && cardsInThisRow < rowStructure[phonyRow - 1];
+
+			// Calculate column positions
+			for (let positionInRow = 0; positionInRow < cardsInThisRow; positionInRow++) {
+				const phonyAnswer = sortedPhonyAnswers[sortedIndex];
+
+				let colStart, colEnd;
+
+				if (isPartialRow) {
+					// Partial row: center cards in gaps between cards above
+					// Previous row cards span: 1-2, 3-4, 5-6, etc.
+					// Gaps are between these cards: at columns 2-3, 4-5, etc.
+					// Partial row cards should span these gaps: 2-3, 4-5, etc.
+					colStart = 2 + positionInRow * 2; // Start at first gap (col 2), then every 2 columns
+					colEnd = colStart + 2;
+				} else {
+					// Full row: cards span 2 columns each, starting from column 1
+					colStart = positionInRow * 2 + 1;
+					colEnd = colStart + 2;
+				}
+
+				positions.push({
+					phonyAnswer,
+					sortedIndex,
+					row: rowNumber,
+					colStart,
+					colEnd,
+				});
+
+				sortedIndex++;
+			}
+		}
+
+		return positions;
+	})();
 
 	// Convert guesses to the format needed for scoring
 	$: guessSpecs = Object.entries($guesses)
 		.filter(([player]) => player !== $dasher)
-		.reduce((acc, [user, guess]) => {
-			acc[user] = { group: guess.group, double: guess.double };
-			return acc;
-		}, {});
+		.reduce(
+			(/** @type {Record<string, {group: string, double: boolean}>} */ acc, [user, guess]) => {
+				acc[user] = { group: String(guess.group ?? '').trim(), double: guess.double };
+				return acc;
+			},
+			{},
+		);
 
-	let showingPlayers = true;
-	let revealedAnswers = [];
-	let showingRealAnswer = false;
-	let currentRevealIndex = 0;
-	let revealInterval;
+	// State for reveal flow
+	let stage = 'showing-phony'; // 'showing-phony' | 'real-appearing' | 'real-extracted' | 'revealing-real-voters' | 'revealing-phony'
+	let realAnswerRevealed = false; // Track when real answer gets green styling
+	let visiblePhonyCount = 0; // Track how many phony answers are visible (for one-by-one appearance)
+	let placedVoteBoxes = new Set(); // Track which answers have vote boxes placed
+	/** @param {number} index */
+	function addPlacedVoteBox(index) {
+		// IMPORTANT: Sets are mutated in-place; reassign to trigger Svelte reactivity reliably.
+		placedVoteBoxes = new Set([...placedVoteBoxes, index]);
+	}
+	let transitioningStage = false; // Track if we're transitioning between stages
+	let canContinue = false; // Track if dasher can proceed
+	/** @type {Array<{player: string, response: string, double: boolean, group: string, voters: string[], voteCount: number}>} */
+	let shuffledPhonyAnswers = []; // Phony answers in random order for appearance
+	// Track phony answer reveal state
+	let currentPhonyRevealIndex = 0; // Which phony answer we're revealing (sorted by vote count)
+	let showingVotersForCurrentPhony = false; // Whether we're showing voters or submitter for current phony
+	/** @type {Array<{player: string, response: string, double: boolean, group: string, voters: string[], voteCount: number}>} */
+	let revealedPhonyAnswers = [];
+	let allowRealAnswerVisible = false; // gate real answer visibility so suspense delay actually works
 
-	// Reveal flow: players -> phony answers -> real answer
+	// Timing constants (single source of truth)
+	const PHONY_APPEAR_INTERVAL_MS = 800;
+	const AFTER_LAST_PHONY_BEFORE_REAL_MS = 2000; // user-requested: keep 2s here
+	const AFTER_REAL_GREEN_BEFORE_REAL_VOTERS_MS = 800;
+	const AFTER_REAL_VOTERS_BEFORE_PHONY_REVEAL_MS = 1500; // faster: voting/submission assignments start after this
+
+	// Voter chip display: avoid “missing votes” by capping visible chips and showing +N.
+	$: maxPhonyVoterChips = gridCols >= 8 ? 4 : 6; // smaller cards when 4-across
+	$: maxRealVoterChips = gridCols >= 8 ? 6 : 8; // real answer is larger
+
+	// Create shuffled array of phony answers in random order for appearance
+	$: {
+		// Shuffle phony answers randomly for appearance order
+		shuffledPhonyAnswers = [...phonyAnswers].sort(() => Math.random() - 0.5);
+		visiblePhonyCount = 0; // Reset when phony answers change
+		allowRealAnswerVisible = false; // Reset real-answer gate when round data changes
+	}
+
+	// Get phony answers sorted by vote count (most to least)
+	$: sortedPhonyAnswers = [...phonyAnswers].sort((a, b) => b.voteCount - a.voteCount);
+
+	// Real answer visibility
+	// IMPORTANT: this must be gated by allowRealAnswerVisible, otherwise the real card appears immediately
+	// when visiblePhonyCount reaches the end (making the suspense delay ineffective).
+	$: isRealVisible =
+		shuffledPhonyAnswers.length === 0 ||
+		(visiblePhonyCount >= shuffledPhonyAnswers.length && allowRealAnswerVisible);
+
 	onMount(() => {
-		// First show players for 2 seconds
-		setTimeout(() => {
-			showingPlayers = false;
+		// Observe container size so the grid can adapt (TVs / window resizes / different row counts)
+		let /** @type {ResizeObserver | null} */ ro = null;
+		if (typeof ResizeObserver !== 'undefined') {
+			ro = new ResizeObserver((entries) => {
+				const entry = entries[0];
+				if (!entry) return;
+				answersContainerHeight = Math.floor(entry.contentRect.height);
+			});
+			if (answersContainerEl) ro.observe(answersContainerEl);
+		}
 
-			// Then start revealing phony answers one by one
-			if (phonyAnswers.length > 0) {
-				revealInterval = setInterval(() => {
-					if (currentRevealIndex < phonyAnswers.length) {
-						revealedAnswers = [...revealedAnswers, phonyAnswers[currentRevealIndex]];
-						currentRevealIndex++;
-					} else if (!showingRealAnswer) {
-						// After all phony answers, show the real answer
-						showingRealAnswer = true;
-						clearInterval(revealInterval);
-					}
-				}, 3000); // 3 seconds per answer
+		// Stage 1: Phony answers appear one by one in random order (slower for suspense)
+		const appearInterval = setInterval(() => {
+			if (visiblePhonyCount < shuffledPhonyAnswers.length) {
+				visiblePhonyCount++;
 			} else {
-				// No phony answers, show real answer immediately
-				showingRealAnswer = true;
+				clearInterval(appearInterval);
+				// Stage 2: After all phony answers are visible, pause before showing real answer
+				setTimeout(() => {
+					allowRealAnswerVisible = true; // this is the *actual* knob for last-phony -> real delay
+					transitioningStage = true;
+					setTimeout(() => {
+						stage = 'real-appearing';
+						transitioningStage = false;
+						// Real answer appears at top
+						setTimeout(() => {
+							stage = 'real-extracted';
+							// After appearing, color it green
+							setTimeout(() => {
+								realAnswerRevealed = true;
+								// Stage 3: Reveal real answer voters
+								setTimeout(() => {
+									stage = 'revealing-real-voters';
+									addPlacedVoteBox(0); // Show real answer voters
+
+									// Wait before revealing phony answers (voting and submission assignments)
+									setTimeout(() => {
+										stage = 'revealing-phony';
+										revealedPhonyAnswers = [];
+										currentPhonyRevealIndex = 0;
+										showingVotersForCurrentPhony = true;
+
+										// Start revealing phony answers in order (most to least votes)
+										revealNextPhonyAnswer();
+									}, AFTER_REAL_VOTERS_BEFORE_PHONY_REVEAL_MS); // before voting/submission reveals
+								}, AFTER_REAL_GREEN_BEFORE_REAL_VOTERS_MS); // before showing voters
+							}, 500); // Brief pause before coloring green
+						}, 200); // Brief transition
+					}, 200); // Brief transition
+				}, AFTER_LAST_PHONY_BEFORE_REAL_MS); // last-phony -> real suspense delay
 			}
-		}, 2000); // Show players for 2 seconds
+		}, PHONY_APPEAR_INTERVAL_MS); // phony appearance cadence
 
 		return () => {
-			if (revealInterval) clearInterval(revealInterval);
+			clearInterval(appearInterval);
+			if (ro) ro.disconnect();
 		};
 	});
+
+	// Function to reveal next phony answer (voters then submitter)
+	function revealNextPhonyAnswer() {
+		if (currentPhonyRevealIndex >= sortedPhonyAnswers.length) {
+			// All phony answers revealed, allow continuation after delay
+			setTimeout(() => {
+				canContinue = true;
+			}, 1000); // 1 second delay before allowing continuation
+			return;
+		}
+
+		const currentPhony = sortedPhonyAnswers[currentPhonyRevealIndex];
+
+		if (showingVotersForCurrentPhony) {
+			// Show voters for current phony answer
+			// Map to placement index (real answer is 0, phony answers start at 1)
+			const placementIndex = currentPhonyRevealIndex + 1;
+			addPlacedVoteBox(placementIndex);
+
+			// Check if there are voters - if not, skip the wait time
+			const hasVoters = currentPhony.voters && currentPhony.voters.length > 0;
+			const voterWaitTime = hasVoters ? 1000 : 0; // Skip wait if no voters
+
+			// Wait (or skip if no voters), then show submitter
+			setTimeout(() => {
+				showingVotersForCurrentPhony = false;
+				revealedPhonyAnswers = [...revealedPhonyAnswers, currentPhony];
+				// Wait before moving to next phony answer
+				setTimeout(() => {
+					currentPhonyRevealIndex++;
+					showingVotersForCurrentPhony = true;
+					revealNextPhonyAnswer();
+				}, 1000); // 1 second pause after showing submitter
+			}, voterWaitTime); // Wait time depends on whether there are voters
+		}
+	}
 </script>
 
 <div class="reveal-host-container">
-	<h2 class="h2 text-center mb-2">Revealing answers for...</h2>
-	<div class="prompt-info">
-		<p class="prompt-text">{$prompt}</p>
-		<p class="category-text">Category: <span class="category-name">{$category}</span></p>
+	<!-- Top Header Bar -->
+	<div class="host-header-bar">
+		<!-- Round Info - Top Left -->
+		<div class="round-info">
+			<span class="round-text">Round {$number} of {$limit}</span>
+		</div>
+
+		<!-- Logo - Center -->
+		<div class="header-logo">
+			<Header />
+		</div>
+
+		<!-- Room Code - Top Right -->
+		<div class="room-code-badge">
+			<span class="room-code-label">Room Code</span>
+			<span class="room-code-value">{sessionId}</span>
+		</div>
 	</div>
 
-	{#if showingPlayers}
-		<div class="players-preview">
-			<p class="text-lg mb-4">Players:</p>
-			<div class="players-list">
-				{#each $players.filter((p) => p !== $dasher) as player}
-					<div class="player-preview-item">{player}</div>
-				{/each}
-			</div>
+	<div class="reveal-header-section">
+		<h2 class="h2 text-center mb-1">Revealing answers for...</h2>
+		<div class="prompt-info">
+			<p class="prompt-text">{$prompt}</p>
+			<p class="category-text">Category: <span class="category-name">{$category}</span></p>
 		</div>
-	{:else}
-		<div class="answers-grid">
-			<!-- Show all revealed phony answers -->
-			{#each revealedAnswers as answer, index}
+	</div>
+
+	<div class="answers-container" bind:this={answersContainerEl}>
+		<div
+			class="answers-grid extracted-grid"
+			class:transitioning={transitioningStage}
+			style="--extracted-cols: {gridCols}; --min-card-height: {minCardHeight}px; --answer-font-px: {answerFontPx}px; grid-template-columns: repeat({gridCols}, 1fr);"
+		>
+			<!-- Real answer - always in DOM to reserve space, but hidden until all phony answers appear -->
+			<div
+				class="real-answer-wrapper"
+				class:visible={isRealVisible}
+				style="grid-column: {realAnswerColStart} / {realAnswerColEnd}; grid-row: 1;"
+			>
 				<div
-					class="answer-card phony"
-					class:no-votes={answer.voteCount === 0}
-					class:few-votes={answer.voteCount === 1}
-					class:many-votes={answer.voteCount >= 2}
-					transition:fade={{ duration: 500 }}
+					class="answer-card"
+					class:real={realAnswerRevealed}
+					class:phony={!realAnswerRevealed}
+					class:extracted-real={realAnswerRevealed}
+					class:dramatic-reveal={realAnswerRevealed}
 				>
-					<div class="answer-header">
-						<span class="answer-label">Phony Answer</span>
-						{#if answer.double}
-							<span class="double-bluff-badge">Double Bluff</span>
-						{/if}
-					</div>
+					{#if realAnswerRevealed}
+						<div class="real-answer-glow"></div>
+					{/if}
 					<div class="answer-content">
-						<p class="answer-text">{answer.response}</p>
+						<p class="answer-text" class:real-text={realAnswerRevealed}>{$response}</p>
 					</div>
-					<div class="answer-author">
-						<span class="author-label">Submitted by:</span>
-						<span class="author-name">{answer.player}</span>
-						{#if answer.voters.length > 0}
-							<div class="voters-section">
-								<span class="voters-label">Fooled:</span>
-								<span class="voters-list">{answer.voters.join(', ')}</span>
+					<!-- Player boxes inside answer - correct guessers and voters -->
+					{#if (stage === 'revealing-real-voters' || stage === 'revealing-phony') && placedVoteBoxes.has(0) && realAnswerPlayers.length > 0}
+						{@const visibleRealPlayers = realAnswerPlayers.slice(0, maxRealVoterChips)}
+						{@const extraRealPlayers = Math.max(
+							0,
+							realAnswerPlayers.length - visibleRealPlayers.length,
+						)}
+						<div class="player-boxes-inside fade-in">
+							{#each visibleRealPlayers as player}
+								<div class="player-box correct-guesser">
+									<PlayerName {player} showBackground={false} showBorder={false} size="small" />
+								</div>
+							{/each}
+							{#if extraRealPlayers > 0}
+								<div class="player-box overflow-count">+{extraRealPlayers}</div>
+							{/if}
+						</div>
+					{/if}
+					<!-- No "Submitted by" for real answer - dasher isn't playing -->
+				</div>
+			</div>
+
+			<!-- Phony answers - always in their calculated positions -->
+			{#each phonyAnswerPositions as { phonyAnswer, sortedIndex, row, colStart, colEnd }}
+				{@const shuffledIndex = shuffledPhonyAnswers.findIndex(
+					(pa) => pa.response === phonyAnswer.response,
+				)}
+				{@const isVisible = stage === 'showing-phony' ? shuffledIndex < visiblePhonyCount : true}
+				{@const isRevealed =
+					stage === 'revealing-phony' &&
+					revealedPhonyAnswers.some((ra) => ra.response === phonyAnswer.response)}
+				{@const isTopFooler = phonyAnswer.voteCount > 0 && phonyAnswer.voteCount === maxVoteCount}
+				<div
+					class="phony-answer-wrapper"
+					class:visible={isVisible}
+					style="grid-row: {row}; grid-column: {colStart} / {colEnd};"
+				>
+					<div
+						class="answer-card phony"
+						class:no-votes={phonyAnswer.voteCount === 0}
+						class:few-votes={phonyAnswer.voteCount === 1}
+						class:many-votes={phonyAnswer.voteCount >= 2}
+						class:revealed={isRevealed}
+						class:dramatic-reveal={isRevealed}
+						class:top-fooler={isTopFooler && isRevealed}
+					>
+						<div class="answer-content">
+							<p class="answer-text">{phonyAnswer.response}</p>
+						</div>
+						<!-- Player boxes inside answer - voters (fooled players) -->
+						{#if stage === 'revealing-phony' && phonyAnswer.voters.length > 0}
+							{@const placementIndex = sortedIndex + 1}
+							{#if placedVoteBoxes.has(placementIndex)}
+								{@const visibleVoters = phonyAnswer.voters.slice(0, maxPhonyVoterChips)}
+								{@const extraVoters = Math.max(0, phonyAnswer.voters.length - visibleVoters.length)}
+								<div
+									class="player-boxes-inside"
+									class:fade-in={placedVoteBoxes.has(placementIndex)}
+									class:top-fooler-players={isTopFooler}
+								>
+									{#each visibleVoters as voter}
+										<div class="player-box" class:top-fooler-voter={isTopFooler}>
+											<PlayerName
+												player={voter}
+												showBackground={false}
+												showBorder={false}
+												size="small"
+											/>
+										</div>
+									{/each}
+									{#if extraVoters > 0}
+										<div class="player-box overflow-count" class:top-fooler-voter={isTopFooler}>
+											+{extraVoters}
+										</div>
+									{/if}
+								</div>
+							{/if}
+						{/if}
+						{#if isRevealed}
+							<div class="answer-submitter">
+								<span class="submitter-name"
+									>Submitted by <PlayerName
+										player={phonyAnswer.player}
+										showBackground={false}
+										showBorder={false}
+										size="small"
+									/></span
+								>
 							</div>
 						{/if}
 					</div>
 				</div>
 			{/each}
-
-			<!-- Show real answer at the end -->
-			{#if showingRealAnswer}
-				<div class="answer-card real" transition:fade={{ duration: 500 }}>
-					<div class="answer-header">
-						<span class="answer-label real-label">The Real Answer</span>
-					</div>
-					<div class="answer-content">
-						<p class="answer-text real-text">{$response}</p>
-					</div>
-					<div class="answer-author">
-						<span class="author-label">Selected by:</span>
-						<span class="author-name">{$dasher} (Dasher)</span>
-					</div>
-				</div>
-			{/if}
 		</div>
-	{/if}
+	</div>
 
-	<!-- Only host player can proceed -->
-	{#if showingRealAnswer && (revealedAnswers.length > 0 || phonyAnswers.length === 0)}
-		{#if isHostPlayer}
+	<!-- Only dasher can proceed, and only after all reveals are complete -->
+	{#if stage === 'revealing-phony' && canContinue && (revealedPhonyAnswers.length === phonyAnswers.length || phonyAnswers.length === 0)}
+		{#if isDasher}
 			<form action="?/reveal.proceed" method="POST" use:enhance class="mt-8">
 				<input type="text" name={SESSION} value={JSON.stringify($data)} hidden />
 				<input name={VOTES} value={JSON.stringify($votes)} type="text" hidden />
 				<input name={GUESSES} value={JSON.stringify(guessSpecs)} type="text" hidden />
-				<input name={CORRECT} value={JSON.stringify(correctGuessers)} type="text" hidden />
+				<input name={CORRECT} value={JSON.stringify(correctGuessersList)} type="text" hidden />
 				<input name={SCOREBOARD} value={JSON.stringify($scoreboard)} type="text" hidden />
 				<input name={DASHER} value={$dasher} type="text" hidden />
 				<button class="btn variant-filled btn-lg rounded-lg w-full" type="submit">
 					Continue to Tally
 				</button>
 			</form>
-		{:else}
-			<p class="text-center mt-8 text-lg">
-				Waiting for {$hostPlayer} to continue...
-			</p>
 		{/if}
 	{/if}
 </div>
@@ -175,75 +551,483 @@
 <style>
 	.reveal-host-container {
 		width: 100%;
-		max-width: 90vw;
 		@apply mx-auto text-center;
 		padding: 0;
+		padding-top: 0; /* No extra padding, stage navigation handles spacing */
 		display: flex;
 		flex-direction: column;
 		align-items: center;
+		justify-content: flex-start;
 		min-height: 0;
+		/* Lock to 16:9 aspect ratio for TV/monitor - ensure nothing goes off screen */
+		aspect-ratio: 16 / 9;
+		max-height: 100vh;
+		max-width: min(90vw, calc(100vh * 16 / 9)); /* Maintain 16:9 ratio, but don't exceed 90vw */
+		overflow: hidden; /* No scrolling - everything must fit */
+		position: relative;
+	}
+
+	/* Top Header Bar - Fixed at top */
+	.host-header-bar {
+		position: fixed;
+		top: 0;
+		left: 0;
+		right: 0;
+		width: 100%;
+		display: grid;
+		grid-template-columns: 1fr auto 1fr;
+		align-items: center;
+		padding: 0.75rem 2rem;
+		@apply bg-surface-50 dark:bg-surface-900;
+		z-index: 10;
+	}
+
+	.round-info {
+		@apply flex items-center;
+		justify-self: start;
+	}
+
+	.header-logo {
+		@apply flex items-center justify-center;
+		justify-self: center;
+	}
+
+	.header-logo :global(.logo-container) {
+		padding: 0.5rem 1rem;
+		min-height: auto;
+	}
+
+	.header-logo :global(.roys-text) {
+		font-size: 1.5rem;
+		top: 0.75rem;
+	}
+
+	.header-logo :global(.rubbish-text) {
+		font-size: 2.5rem;
+	}
+
+	.header-logo :global(.rubbish-r) {
+		font-size: 1.5em;
+	}
+
+	.round-text {
+		font-size: clamp(1rem, 2vh, 1.5rem);
+		@apply font-semibold text-surface-700 dark:text-surface-300;
+	}
+
+	.room-code-badge {
+		@apply flex flex-col items-end gap-1;
+		padding: 0.5rem 1rem;
+		@apply bg-primary-100 dark:bg-primary-900 rounded-lg border border-primary-300 dark:border-primary-700;
+		box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.1);
+		justify-self: end;
+	}
+
+	.room-code-label {
+		font-size: clamp(0.625rem, 1vh, 0.75rem);
+		@apply text-primary-600 dark:text-primary-400 font-medium;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+	}
+
+	.room-code-value {
+		font-size: clamp(1.25rem, 2.5vh, 1.75rem);
+		@apply font-bold text-primary-500 font-mono;
+		letter-spacing: 0.15em;
+	}
+
+	.reveal-header-section {
+		flex-shrink: 0;
+		@apply mb-1;
+		width: 100%;
+		max-width: 100%;
+		margin-top: 0.5rem; /* Close to stage navigation above */
+		box-sizing: border-box;
+		overflow-wrap: break-word;
+		word-wrap: break-word;
+		word-break: break-word;
+		padding: 0 0.5rem; /* Add small padding to prevent edge overflow */
+		overflow-x: hidden; /* Prevent horizontal overflow */
 	}
 
 	.reveal-host-container :global(h2) {
-		font-size: clamp(1.5rem, 3.5vh, 2.5rem);
-		@apply mb-2;
+		font-size: clamp(1rem, 1.8vh, 1.5rem);
+		@apply mb-0.5;
+		overflow-wrap: break-word;
+		word-wrap: break-word;
+		word-break: break-word;
+		max-width: 100%;
+		width: 100%;
+		white-space: normal;
+		box-sizing: border-box;
+		padding: 0 0.5rem;
 	}
 
 	.prompt-info {
-		@apply mb-4 text-center;
+		@apply text-center;
+		flex-shrink: 0;
+		max-width: 100%;
+		box-sizing: border-box;
+		overflow-wrap: break-word;
+		word-wrap: break-word;
+		margin-bottom: 0.5rem; /* Reduced from default to give more space to cards */
 	}
 
 	.prompt-text {
-		font-size: clamp(1.25rem, 2.5vh, 1.75rem);
-		@apply font-semibold text-primary-500 mb-2;
+		font-size: clamp(1rem, 2vh, 1.5rem);
+		@apply font-semibold text-primary-500 mb-1;
+		overflow-wrap: break-word;
+		word-wrap: break-word;
+		word-break: break-word;
+		max-width: 100%;
+		width: 100%;
+		line-height: 1.3;
+		white-space: normal;
+		box-sizing: border-box;
 	}
 
 	.category-text {
-		font-size: clamp(1rem, 2vh, 1.25rem);
+		font-size: clamp(0.875rem, 1.5vh, 1.125rem);
 		@apply text-surface-600 dark:text-surface-400;
+		overflow-wrap: break-word;
+		word-wrap: break-word;
+		word-break: break-word;
+		max-width: 100%;
+		width: 100%;
+		white-space: normal;
+		box-sizing: border-box;
 	}
 
 	.category-name {
 		@apply text-primary-400 font-semibold;
 	}
 
-	.players-preview {
-		margin-bottom: 4vh;
+	.answers-container {
 		width: 100%;
-	}
-
-	.players-list {
+		/* Match the stage navigation width - don't extend past it */
+		max-width: min(85vw, 100%);
+		margin: 0 auto;
+		/* Ensure container fits on screen - use flex to fill available space */
+		flex: 1;
 		display: flex;
-		flex-wrap: wrap;
+		align-items: flex-start; /* Align to top to show all content */
 		justify-content: center;
-		gap: 2vw;
-	}
-
-	.player-preview-item {
-		font-size: clamp(1.25rem, 2.5vh, 1.75rem);
-		@apply font-semibold bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300 rounded-lg;
-		padding: 1.5vh 3vw;
+		min-height: 0;
+		overflow: hidden; /* No scrolling - content must fit */
+		box-sizing: border-box;
+		padding: 0 0.5rem; /* Outer padding */
+		/* Tiny inset so borders don’t get clipped at certain browser zoom levels */
+		padding-bottom: 2px;
+		padding-top: 2px;
+		/* Ensure container doesn't exceed available space */
+		max-height: 100%;
 	}
 
 	.answers-grid {
 		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-		gap: 1.5rem;
-		margin-bottom: 2rem;
+		/* IMPORTANT: we use “double columns” and span 2 columns per card.
+		   Grid column gaps get INCLUDED inside a span, which can cause edge cutoffs on zoom.
+		   So: keep column gap = 0, and create horizontal spacing via wrapper padding. */
+		row-gap: 0.5rem;
+		column-gap: 0;
 		width: 100%;
-		max-width: 85vw;
-		margin-left: auto;
-		margin-right: auto;
+		max-width: 100%;
+		box-sizing: border-box;
+		grid-auto-rows: auto;
+		justify-content: center;
+		align-items: start;
+		overflow-x: hidden; /* Prevent horizontal overflow */
+		overflow-y: visible; /* Allow vertical overflow for player boxes */
+	}
+
+	/* Smooth transition state */
+	.answers-grid.transitioning {
+		opacity: 0.95;
+		transition: opacity 0.2s ease-in-out;
+		/* Don't transition grid-template-columns - it's set explicitly via inline style */
+	}
+
+	/* Extracted grid: real answer on top (centered), phony answers below */
+	/* IMPORTANT: grid-template-columns is set via inline style for dynamic column count */
+	/* This CSS is just a fallback - inline style will override */
+	.answers-grid.extracted-grid,
+	.extracted-grid {
+		/* Fallback if inline style doesn't apply - but inline style should take precedence */
+		grid-template-columns: repeat(var(--extracted-cols, 2), 1fr);
+		grid-auto-rows: minmax(
+			var(--min-card-height, 180px),
+			auto
+		); /* Responsive rows: min height, grow with content */
+		justify-content: center;
+		justify-items: stretch; /* Stretch items to fill their grid cells */
+		align-items: stretch; /* Stretch items to fill their grid cells vertically */
+		/* Explicit positioning - items use grid-row and grid-column from inline styles */
+		/* Use 'dense' to fill gaps, but explicit positioning should take precedence */
+		grid-auto-flow: row dense;
+		/* Center items when rows aren't full (e.g., 5 items: 3-2 layout) */
+		align-content: start;
+		/* Max width to prevent cards from getting too wide */
+		max-width: 100%;
+		width: 100%;
+		box-sizing: border-box;
+		row-gap: 0.5rem;
+		column-gap: 0;
+		/* No scrolling - content must fit */
+		overflow: hidden;
+		/* Ensure grid fits within container */
+		max-height: 100%;
+	}
+
+	/* Real answer wrapper - contains card and meta info */
+	.real-answer-wrapper {
+		/* Same sizing as phony answer wrappers */
+		width: 100%;
+		max-width: 100%;
+		box-sizing: border-box;
+		display: flex;
+		flex-direction: column;
+		align-items: stretch; /* Stretch to fill grid cell */
+		justify-content: flex-start;
+		gap: 0;
+		overflow: hidden; /* Prevent animations from going outside */
+		position: relative;
+		/* Ensure player boxes can extend beyond wrapper */
+		min-height: 0;
+		/* Real answer is part of the grid - same size as phony answers, centered */
+		/* Grid position is set via inline style - no transitions on grid properties */
+		transition: opacity 0.4s ease-in;
+		/* Ensure full card height is visible - align to start of grid row */
+		align-self: stretch; /* Stretch to fill grid cell */
+		/* Remove margins to ensure cards touch */
+		margin: 0;
+		padding: 0;
+		/* Horizontal spacing between cards (prevents span+gap issues and zoom cutoffs) */
+		padding-inline: 0.25rem;
+	}
+
+	/* Real answer card */
+	.extracted-grid .extracted-real {
+		justify-self: stretch; /* Same as phony answers */
+	}
+
+	/* Phony answer wrapper - contains card and meta info */
+	.phony-answer-wrapper {
+		display: flex;
+		flex-direction: column;
+		align-items: stretch; /* Stretch to fill grid cell */
+		justify-content: flex-start;
+		gap: 0;
+		overflow: hidden; /* Prevent animations from going outside */
+		position: relative;
+		/* Ensure wrapper doesn't force card width - same as real answer */
+		width: 100%;
+		max-width: 100%;
+		box-sizing: border-box;
+		/* Ensure player boxes can extend beyond wrapper */
+		min-height: 0;
+		/* Grid position is set via inline style - no transitions on grid properties */
+		transition: opacity 0.4s ease-in;
+		/* Constrain wrapper to grid cell */
+		width: 100%;
+		max-width: 100%;
+		box-sizing: border-box;
+		/* Remove margins to ensure cards touch */
+		margin: 0;
+		padding: 0;
+		/* Horizontal spacing between cards (prevents span+gap issues and zoom cutoffs) */
+		padding-inline: 0.25rem;
+	}
+
+	/* Card sizing - responsive container-based approach */
+	.answers-grid .answer-card {
+		/* Cards fill 100% of their grid cell (container determines size) */
+		width: 100%;
+		max-width: 100%;
+		/* Use min-height instead of fixed height for responsiveness */
+		min-height: var(--min-card-height, 180px);
+		/* Rectangle shape - much wider than tall, but responsive */
+		display: flex;
+		flex-direction: column;
+		justify-content: space-between;
+		box-sizing: border-box;
+		/* Reduced padding to fit more content */
+		padding: 0.5rem;
+		/* Prevent overflow - cards stay within their containers */
+		overflow: hidden;
+		/* CSS containment to prevent animations from causing overflow */
+		contain: layout style;
+		/* Allow cards to grow with content but maintain minimum */
+		flex-shrink: 1;
+		min-width: 0; /* Allow cards to shrink below their content size in grid */
+		/* Ensure player boxes can extend beyond card boundaries */
+		position: relative;
+		/* Prevent cards from expanding beyond their containers */
+		max-width: 100%;
+	}
+
+	/* Card content area - prevent text overflow */
+	.answer-card .answer-content {
+		overflow: hidden; /* Prevent text from overflowing card */
+	}
+
+	/* In extracted grid, cards fill their grid cells completely */
+	.extracted-grid .answer-card {
+		/* Cards fill 100% of grid cell */
+		width: 100%;
+		max-width: 100%;
+		min-width: 0; /* Allow cards to shrink below their content size in grid */
+		/* Ensure cards stay within their containers */
+		box-sizing: border-box;
+	}
+
+	/* Ensure phony answer wrappers respect explicit grid positioning */
+	.extracted-grid .phony-answer-wrapper {
+		/* Explicit grid positioning from inline styles will be respected */
+		width: 100%;
+		max-width: 100%;
+	}
+
+	/* Visibility control for staged appearance */
+	.real-answer-wrapper:not(.visible),
+	.phony-answer-wrapper:not(.visible) {
+		/* Reserve space in grid even when hidden */
+		min-height: var(--min-card-height, 180px);
+		opacity: 0;
+		pointer-events: none;
+	}
+
+	.real-answer-wrapper:not(.visible) .answer-card,
+	.phony-answer-wrapper:not(.visible) .answer-card {
+		opacity: 0;
+		visibility: hidden;
+	}
+
+	.real-answer-wrapper.visible .answer-card,
+	.phony-answer-wrapper.visible .answer-card {
+		opacity: 1;
+		visibility: visible;
+		transition:
+			opacity 0.4s ease-in,
+			visibility 0.4s ease-in;
+	}
+
+	/* Phony answers are positioned explicitly from the start - no grid transitions needed */
+	.extracted-grid .phony-answer-wrapper {
+		/* Explicit grid positioning from inline styles - no transitions on grid properties */
+		transition: opacity 0.4s ease-in;
+	}
+
+	.extracted-real {
+		/* Smooth extraction animation - reduced scale to prevent overflow */
+		animation: extractReal 2s cubic-bezier(0.16, 1, 0.3, 1);
+		z-index: 10;
+		box-shadow:
+			0 8px 16px -4px rgba(34, 197, 94, 0.4),
+			0 4px 8px -2px rgba(34, 197, 94, 0.3);
+		transition:
+			box-shadow 1s ease-out,
+			border-color 1s ease-out,
+			background-color 1s ease-out;
+		will-change: transform;
+		/* Prevent overflow during animation */
+		overflow: hidden;
+	}
+
+	@keyframes extractReal {
+		0% {
+			transform: translateX(0) translateY(0);
+			opacity: 1;
+		}
+		20% {
+			transform: translateX(0) translateY(-3px);
+			opacity: 1;
+		}
+		40% {
+			transform: translateX(0) translateY(-6px);
+			opacity: 1;
+		}
+		60% {
+			transform: translateX(0) translateY(-8px);
+			opacity: 1;
+		}
+		80% {
+			transform: translateX(0) translateY(-10px);
+			opacity: 1;
+		}
+		100% {
+			transform: translateX(0) translateY(-8px);
+			opacity: 1;
+		}
+	}
+
+	/* Smooth reveal animation when real answer gets green styling - reduced scale */
+	.dramatic-reveal {
+		/* Disable “pulsing”/reveal animations entirely to prevent any layout jank */
+		animation: none !important;
+	}
+
+	@keyframes subtleReveal {
+		0% {
+			transform: translateY(0);
+			opacity: 0.9;
+		}
+		50% {
+			transform: translateY(-2px);
+			opacity: 0.95;
+		}
+		100% {
+			transform: translateY(-3px);
+			opacity: 1;
+		}
+	}
+
+	.answer-card.phony:not(.revealed) {
+		opacity: 0.8;
+		transition: opacity 0.4s ease-out;
+	}
+
+	.answer-card.phony.revealed {
+		opacity: 1;
+		transition:
+			opacity 0.6s ease-out,
+			transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+	}
+
+	/* Smooth reveal for phony answers - reduced scale to prevent overflow */
+	.answer-card.phony.dramatic-reveal {
+		/* Disable “pulsing”/reveal animations entirely to prevent any layout jank */
+		animation: none !important;
+	}
+
+	@keyframes phonyReveal {
+		0% {
+			transform: translateY(2px);
+			opacity: 0.75;
+		}
+		50% {
+			transform: translateY(-1px);
+			opacity: 0.9;
+		}
+		100% {
+			transform: translateY(0);
+			opacity: 1;
+		}
 	}
 
 	.answer-card {
 		@apply bg-surface-200 dark:bg-surface-800 rounded-lg border-2;
-		padding: 1.5rem;
-		min-height: auto;
+		transition:
+			all 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+			border-color 0.5s ease-out,
+			background-color 0.5s ease-out,
+			box-shadow 0.5s ease-out;
+		position: relative;
+		transform-origin: center;
 		display: flex;
 		flex-direction: column;
 		justify-content: space-between;
-		transition: all 0.3s ease;
+		/* Ensure player boxes overlay can extend beyond card */
+		overflow: visible;
 	}
 
 	.answer-card.phony {
@@ -266,81 +1050,295 @@
 			0 2px 4px -1px rgba(0, 0, 0, 0.06);
 	}
 
+	/* Highlight top fooling phony answers */
+	.answer-card.phony.top-fooler {
+		@apply border-warning-500 bg-warning-100 dark:bg-warning-900/30;
+		box-shadow:
+			0 6px 12px -2px rgba(234, 179, 8, 0.4),
+			0 4px 8px -2px rgba(234, 179, 8, 0.3);
+		/* Pulsing animation removed */
+		transition:
+			border-color 0.6s ease-out,
+			background-color 0.6s ease-out,
+			box-shadow 0.6s ease-out;
+		position: relative;
+	}
+
+	/* topFoolerPulse keyframes removed - pulsing animation disabled */
+
 	.answer-card.real {
 		@apply border-success-500 bg-success-50 dark:bg-success-900/20;
+		/* Smooth color transition */
+		transition:
+			border-color 0.8s ease-out,
+			background-color 0.8s ease-out,
+			box-shadow 0.8s ease-out;
+		/* Pulsing animation removed */
+		box-shadow:
+			0 4px 8px -2px rgba(34, 197, 94, 0.2),
+			0 2px 4px -1px rgba(34, 197, 94, 0.15);
 	}
 
-	.answer-header {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		@apply mb-3;
-		flex-wrap: wrap;
-		gap: 0.5rem;
+	.real-answer-glow {
+		position: absolute;
+		inset: -4px;
+		background: linear-gradient(135deg, rgba(34, 197, 94, 0.2), rgba(22, 163, 74, 0.2));
+		border-radius: 0.5rem;
+		z-index: -1;
+		/* Smooth glow appearance - pulsing removed */
+		animation: glowFadeIn 1.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+		filter: blur(6px);
+		opacity: 0;
+		animation-fill-mode: forwards;
 	}
 
-	.answer-label {
-		font-size: clamp(0.875rem, 1.5vh, 1.125rem);
-		@apply font-semibold text-primary-600 dark:text-primary-400;
+	@keyframes glowFadeIn {
+		0% {
+			opacity: 0;
+		}
+		50% {
+			opacity: 0.3;
+		}
+		100% {
+			opacity: 0.5;
+		}
 	}
 
-	.real-label {
-		@apply text-success-600 dark:text-success-400;
+	/* realAnswerPulse and glowPulse keyframes removed - pulsing animations disabled */
+
+	/* Submitter name inside box at bottom */
+	.answer-submitter {
+		text-align: center;
+		padding: 0.4rem 0.5rem;
+		@apply border-t border-surface-300 dark:border-surface-600;
+		margin-top: auto;
+		flex-shrink: 0;
 	}
 
-	.double-bluff-badge {
-		font-size: clamp(0.75rem, 1.2vh, 0.875rem);
-		@apply bg-warning-200 dark:bg-warning-800 text-warning-800 dark:text-warning-200 rounded;
-		padding: 0.25rem 0.75rem;
+	.submitter-name {
+		font-size: clamp(0.75rem, 1.2vh, 0.9rem);
+		@apply font-semibold text-surface-600 dark:text-surface-400;
 	}
 
 	.answer-content {
 		flex: 1;
 		display: flex;
-		align-items: center;
+		align-items: flex-start;
 		justify-content: center;
-		@apply my-4 px-2;
-		min-height: 4rem;
+		@apply px-2;
+		/* Account for player boxes bar at top (min-height 2.5rem = 40px + padding 0.5rem top = 8px = 48px total) */
+		padding-top: 3.5rem;
+		padding-bottom: 0.5rem;
+		min-height: 2rem;
+		/* Allow content to scroll if needed, but prefer wrapping */
+		overflow-y: auto; /* Allow scrolling if content is too long */
+		overflow-x: hidden;
+		flex-shrink: 1;
+		min-width: 0; /* Allow content to shrink in grid */
+		width: 100%;
+		box-sizing: border-box;
+		/* Ensure content wraps properly */
+		overflow-wrap: break-word;
+		word-wrap: break-word;
 	}
 
 	.answer-text {
-		font-size: clamp(1.25rem, 2.5vh, 1.75rem);
+		font-size: clamp(20px, var(--answer-font-px, 22px), 24px);
 		@apply font-semibold text-center text-surface-900 dark:text-surface-100;
 		word-wrap: break-word;
 		overflow-wrap: break-word;
-		line-height: 1.5;
+		word-break: break-word;
+		line-height: 1.3;
 		max-width: 100%;
+		width: 100%;
+		/* Allow full text to display with natural wrapping */
+		display: block;
+		overflow: visible;
+		text-overflow: unset;
+		white-space: normal;
+		box-sizing: border-box;
+		white-space: normal;
+		width: 100%;
 	}
 
 	.real-text {
 		@apply text-success-700 dark:text-success-300;
+		transition: color 0.8s ease-out;
+		animation: textColorFadeIn 0.8s ease-out;
 	}
 
-	.answer-author {
-		@apply mt-4 text-center;
+	@keyframes textColorFadeIn {
+		from {
+			opacity: 0.7;
+		}
+		to {
+			opacity: 1;
+		}
 	}
 
-	.author-label {
-		font-size: clamp(0.875rem, 1.5vh, 1rem);
-		@apply text-surface-600 dark:text-surface-400 block mb-1;
+	/* Player boxes inside answer cards - Jackbox style horizontal bar */
+	.player-boxes-inside {
+		position: absolute;
+		top: 0;
+		left: 0;
+		right: 0;
+		display: flex;
+		flex-direction: row;
+		align-items: center;
+		justify-content: center;
+		gap: 0.5rem;
+		z-index: 5;
+		pointer-events: none;
+		/* Background bar like Jackbox */
+		@apply bg-surface-300 dark:bg-surface-700;
+		padding: 0.5rem 0.75rem;
+		border-radius: 0.5rem 0.5rem 0 0;
+		/* Ensure it spans full width but stays within card */
+		width: 100%;
+		max-width: 100%;
+		box-sizing: border-box;
+		/* No wrapping; we show +N instead (prevents hidden “missing voters”) */
+		flex-wrap: nowrap;
+		min-height: 2.5rem;
+		/* Start hidden, will fade in when fade-in class is added */
+		opacity: 0;
+		transform: translateY(-8px);
+		transition:
+			opacity 0.3s ease-out,
+			transform 0.3s ease-out;
+		/* Keep on one line without scrolling */
+		overflow: hidden;
 	}
 
-	.author-name {
-		font-size: clamp(1rem, 2vh, 1.5rem);
-		@apply font-bold text-primary-500;
+	/* +N overflow badge */
+	.player-box.overflow-count {
+		@apply bg-surface-50 dark:bg-surface-800 text-surface-700 dark:text-surface-200;
+		@apply border-surface-400 dark:border-surface-600;
+		opacity: 0.9;
 	}
 
-	.voters-section {
-		@apply mt-3 pt-3 border-t border-surface-300 dark:border-surface-600;
+	.player-boxes-inside.fade-in {
+		opacity: 1;
+		transform: translateY(0);
+		animation: fadeInUp 0.7s cubic-bezier(0.34, 1.56, 0.64, 1);
 	}
 
-	.voters-label {
-		font-size: clamp(0.875rem, 1.5vh, 1rem);
-		@apply text-surface-600 dark:text-surface-400 block mb-1;
+	.player-box {
+		@apply bg-surface-50 dark:bg-surface-800 text-surface-900 dark:text-surface-100;
+		padding: 0.35rem 0.65rem;
+		border-radius: 0.5rem;
+		font-size: clamp(0.8rem, 1.2vh, 1rem);
+		@apply font-bold;
+		border: 2px solid;
+		@apply border-surface-400 dark:border-surface-600;
+		white-space: nowrap;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		box-shadow:
+			0 2px 4px -1px rgba(0, 0, 0, 0.2),
+			0 1px 2px -1px rgba(0, 0, 0, 0.1);
+		line-height: 1.2;
+		flex-shrink: 0;
+		/* More prominent styling */
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+		transition: all 0.2s ease-out;
 	}
 
-	.voters-list {
-		font-size: clamp(0.9rem, 1.8vh, 1.25rem);
-		@apply font-semibold text-success-600 dark:text-success-400;
+	/* Real answer voters - green theme */
+	.answer-card.real .player-boxes-inside {
+		@apply bg-success-200 dark:bg-success-800;
+	}
+
+	.answer-card.real .player-box {
+		@apply bg-success-50 dark:bg-success-900 text-success-800 dark:text-success-200;
+		@apply border-success-400 dark:border-success-600;
+		box-shadow:
+			0 2px 4px -1px rgba(34, 197, 94, 0.3),
+			0 1px 2px -1px rgba(34, 197, 94, 0.2);
+	}
+
+	.player-box.correct-guesser {
+		@apply bg-success-100 dark:bg-success-900 text-success-800 dark:text-success-200;
+		@apply border-success-500 dark:border-success-500;
+		box-shadow:
+			0 3px 6px -1px rgba(34, 197, 94, 0.4),
+			0 1px 3px -1px rgba(34, 197, 94, 0.3);
+	}
+
+	/* Phony answer voters - themed by vote count */
+	.answer-card.phony.many-votes .player-boxes-inside {
+		@apply bg-success-200 dark:bg-success-800;
+	}
+
+	.answer-card.phony.few-votes .player-boxes-inside {
+		@apply bg-warning-200 dark:bg-warning-800;
+	}
+
+	.answer-card.phony.no-votes .player-boxes-inside {
+		@apply bg-surface-300 dark:bg-surface-700;
+	}
+
+	.answer-card.phony.many-votes .player-box {
+		@apply bg-success-50 dark:bg-success-900 text-success-800 dark:text-success-200;
+		@apply border-success-400 dark:border-success-600;
+		box-shadow:
+			0 2px 4px -1px rgba(34, 197, 94, 0.3),
+			0 1px 2px -1px rgba(34, 197, 94, 0.2);
+	}
+
+	.answer-card.phony.few-votes .player-box {
+		@apply bg-warning-50 dark:bg-warning-900 text-warning-800 dark:text-warning-200;
+		@apply border-warning-400 dark:border-warning-600;
+		box-shadow:
+			0 2px 4px -1px rgba(234, 179, 8, 0.3),
+			0 1px 2px -1px rgba(234, 179, 8, 0.2);
+	}
+
+	.player-box.top-fooler-voter {
+		@apply bg-warning-100 dark:bg-warning-900 text-warning-800 dark:text-warning-200;
+		@apply border-warning-500 dark:border-warning-500;
+		box-shadow:
+			0 3px 6px -1px rgba(234, 179, 8, 0.4),
+			0 1px 3px -1px rgba(234, 179, 8, 0.3);
+		/* Removed scale to prevent overflow */
+	}
+
+	.player-boxes-inside.top-fooler-players {
+		@apply bg-warning-300 dark:bg-warning-700;
+	}
+
+	@keyframes fadeInUp {
+		from {
+			opacity: 0;
+			transform: translateY(12px);
+		}
+		50% {
+			opacity: 0.7;
+			transform: translateY(4px);
+		}
+		to {
+			opacity: 1;
+			transform: translateY(0);
+		}
+	}
+
+	/* Smooth transitions for submitter reveal */
+	.answer-submitter {
+		animation: slideInUp 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+	}
+
+	@keyframes slideInUp {
+		from {
+			opacity: 0;
+			transform: translateY(8px);
+			max-height: 0;
+		}
+		to {
+			opacity: 1;
+			transform: translateY(0);
+			max-height: 100px;
+		}
 	}
 </style>

@@ -2,6 +2,7 @@ import { CLIENT_TYPES, DEFAULT_HOST_PLAYER, DEFAULT_SCORE, SCOREBOARD, SESSION_I
 import { dbRef, getSession, sessionIdExists, validateToken } from '$lib/firebase/server';
 import { fail, redirect } from '@sveltejs/kit';
 import { enquire } from '$lib/contact.js';
+import { getPlayerColorIndex } from '$lib/utils';
 
 /** @type {import('./$types').Actions} */
 export const actions = {
@@ -48,6 +49,14 @@ export const actions = {
 		} else {
 			// Add to scoreboard as player
 			updates[`${SCOREBOARD}/${username}`] = DEFAULT_SCORE;
+			
+			// Assign color to player based on join order (ensures unique colors)
+			// Get existing players count - this new player will be the next one
+			const existingPlayersCount = players.length;
+			// Assign colors sequentially: first player gets color 0, second gets color 1, etc.
+			// This ensures each player gets a different color (cycles through 12 colors)
+			const colorIndex = existingPlayersCount % 12;
+			updates[`playerColors/${username}`] = colorIndex;
 			
 			// Check if this is the first player to join (no players in scoreboard yet)
 			// AND if hostPlayer hasn't been set yet (either undefined or still the default UNKNOWN)

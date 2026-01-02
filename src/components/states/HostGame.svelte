@@ -1,4 +1,5 @@
 <script>
+	import { page } from '$app/stores';
 	import { round, session } from '$lib/store';
 	import { ROUND_STATES } from '$lib/constants';
 	import { toTitleCase } from '$lib/utils';
@@ -10,9 +11,11 @@
 	import Fa from 'svelte-fa';
 	import { onMount } from 'svelte';
 	import Header from '../globals/Header.svelte';
+	import PlayerName from '../parts/PlayerName.svelte';
 
 	const { players, limit } = session;
 	const { dasher, number, state, prompt, category, guesses, votes, time } = round;
+	let sessionId = $page.params.sessionId;
 	
 	$: ({ prompt: promptLabel, response: responseLabel } = getCategoryWords($category));
 	$: guessingPlayers = $players.length - 1; // Exclude dasher
@@ -21,6 +24,11 @@
 	$: waitingForGuesses = $players.filter(p => p !== $dasher && !submittedPlayers.includes(p));
 	$: waitingForVotes = $players.filter(p => p !== $dasher && !votedPlayers.includes(p) && !Object.keys($guesses).filter(player => $guesses[player].correct).includes(p));
 	$: visibleStates = Object.keys(ROUND_STATES).filter((s) => s !== ROUND_STATES.UNKNOWN && s !== ROUND_STATES.LOADING);
+
+	// Host layout compaction for large lobbies (up to 12 players)
+	$: isLargeLobby = $players.length >= 10;
+	// 3 columns for large lobbies, 2 for mid-size, 1 for small
+	$: statusListCols = $players.length >= 10 ? 3 : $players.length >= 7 ? 2 : 1;
 	
 	// Timer calculation for host view
 	let hostSeconds = 0;
@@ -66,15 +74,28 @@
 </script>
 
 <!-- Host Game: Public display screen showing game state everyone can see -->
-<div class="host-game">
-	<!-- Logo -->
-	<div class="logo-section">
-		<Header />
+<div class="host-game" class:compact={isLargeLobby} style="--status-list-cols: {statusListCols};">
+	<!-- Top Header Bar -->
+	<div class="host-header-bar">
+		<!-- Round Info - Top Left -->
+		<div class="round-info">
+			<span class="round-text">Round {$number} of {$limit}</span>
+		</div>
+		
+		<!-- Logo - Center -->
+		<div class="header-logo">
+			<Header />
+		</div>
+		
+		<!-- Room Code - Top Right -->
+		<div class="room-code-badge">
+			<span class="room-code-label">Room Code</span>
+			<span class="room-code-value">{sessionId}</span>
+		</div>
 	</div>
 
-	<!-- Round Info -->
-	<div class="round-header">
-		<h1 class="h1 text-center mb-2">Round {$number} of {$limit}</h1>
+	<!-- Stage Navigation -->
+	<div class="logo-nav-section">
 		<div class="stage-navigation">
 			{#each visibleStates as possibleState, index}
 				<span class:highlighted={possibleState === $state}>
@@ -92,7 +113,7 @@
 		{#if $state === ROUND_STATES.SELECT}
 			<Prompter withInfo={true} isHostView={true} />
 			<div class="status-message">
-				{$dasher} is selecting a {promptLabel}...
+				<PlayerName player={$dasher} showBackground={false} showBorder={false} /> is selecting a {promptLabel}...
 			</div>
 		{:else if $state === ROUND_STATES.GUESS}
 			<Prompter withInfo={true} isHostView={true} />
@@ -117,7 +138,7 @@
 						{#each submittedPlayers as player}
 							<li class="status-item submitted">
 								<Fa icon={faCheckCircle} />
-								<span>{player}</span>
+								<PlayerName {player} showBackground={false} showBorder={false} />
 							</li>
 						{/each}
 					</ul>
@@ -129,7 +150,7 @@
 							{#each waitingForGuesses as player}
 								<li class="status-item waiting">
 									<Fa icon={faClock} />
-									<span>{player}</span>
+									<PlayerName {player} showBackground={false} showBorder={false} />
 								</li>
 							{/each}
 						</ul>
@@ -139,12 +160,12 @@
 		{:else if $state === ROUND_STATES.MARK}
 			<Prompter withInfo={true} isHostView={true} />
 			<div class="status-message">
-				{$dasher} is marking correct guesses...
+				<PlayerName player={$dasher} showBackground={false} showBorder={false} /> is marking correct guesses...
 			</div>
 		{:else if $state === ROUND_STATES.GROUP}
 			<Prompter withInfo={true} isHostView={true} />
 			<div class="status-message">
-				{$dasher} is grouping similar guesses...
+				<PlayerName player={$dasher} showBackground={false} showBorder={false} /> is grouping similar guesses...
 			</div>
 		{:else if $state === ROUND_STATES.VOTE}
 			<Prompter withInfo={false} isHostView={true} />
@@ -161,7 +182,7 @@
 						{#each votedPlayers as player}
 							<li class="status-item submitted">
 								<Fa icon={faCheckCircle} />
-								<span>{player}</span>
+								<PlayerName {player} showBackground={false} showBorder={false} />
 							</li>
 						{/each}
 					</ul>
@@ -173,7 +194,7 @@
 							{#each waitingForVotes as player}
 								<li class="status-item waiting">
 									<Fa icon={faClock} />
-									<span>{player}</span>
+									<PlayerName {player} showBackground={false} showBorder={false} />
 								</li>
 							{/each}
 						</ul>
@@ -190,7 +211,7 @@
 	<!-- Current Dasher Info -->
 	<div class="flex flex-col items-center justify-center">
 		<div class="role-chip py-1 px-2 my-5 rounded-lg">
-			{$dasher} is the dasher
+			<PlayerName player={$dasher} showBackground={false} showBorder={false} /> is the dasher
 		</div>
 	</div>
 </div>
@@ -240,30 +261,97 @@
 		right: 0;
 		bottom: 0;
 		z-index: 1000;
-		overflow-y: auto;
+		overflow: hidden;
 		margin: 0;
 		box-sizing: border-box;
 		gap: 1.5rem;
+		padding-top: 2rem; /* Extra space for fixed header */
+		/* Lock to 16:9 aspect ratio for TV/monitor */
+		aspect-ratio: 16 / 9;
+		max-width: calc(100vh * 16 / 9);
+		max-height: 100vh;
+		margin-left: auto;
+		margin-right: auto;
 	}
 
-	.logo-section {
+	/* Top Header Bar - Fixed at top */
+	.host-header-bar {
+		position: fixed;
+		top: 0;
+		left: 0;
+		right: 0;
+		width: 100%;
+		display: grid;
+		grid-template-columns: 1fr auto 1fr;
+		align-items: center;
+		padding: 0.75rem 2rem;
+		@apply bg-surface-50 dark:bg-surface-900;
+		z-index: 10;
+	}
+
+	.round-info {
+		@apply flex items-center;
+		justify-self: start;
+	}
+
+	.header-logo {
+		@apply flex items-center justify-center;
+		justify-self: center;
+	}
+
+	.header-logo :global(.logo-container) {
+		padding: 0.5rem 1rem;
+		min-height: auto;
+	}
+
+	.header-logo :global(.roys-text) {
+		font-size: 1.5rem;
+		top: 0.75rem;
+	}
+
+	.header-logo :global(.rubbish-text) {
+		font-size: 2.5rem;
+	}
+
+	.header-logo :global(.rubbish-r) {
+		font-size: 1.5em;
+	}
+
+	.round-text {
+		font-size: clamp(1rem, 2vh, 1.5rem);
+		@apply font-semibold text-surface-700 dark:text-surface-300;
+	}
+
+	.room-code-badge {
+		@apply flex flex-col items-end gap-1;
+		padding: 0.5rem 1rem;
+		@apply bg-primary-100 dark:bg-primary-900 rounded-lg border border-primary-300 dark:border-primary-700;
+		box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.1);
+		justify-self: end;
+	}
+
+	.room-code-label {
+		font-size: clamp(0.625rem, 1vh, 0.75rem);
+		@apply text-primary-600 dark:text-primary-400 font-medium;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+	}
+
+	.room-code-value {
+		font-size: clamp(1.25rem, 2.5vh, 1.75rem);
+		@apply font-bold text-primary-500 font-mono;
+		letter-spacing: 0.15em;
+	}
+
+	.logo-nav-section {
 		flex-shrink: 0;
-		@apply mb-2 flex items-center justify-center;
-	}
-
-	.round-header {
-		flex-shrink: 0;
-		@apply mb-2 w-full;
-		max-width: 90vw;
-	}
-
-	.round-header :global(h1) {
-		font-size: clamp(1.75rem, 4vh, 3rem);
-		@apply mb-3 font-semibold;
+		@apply w-full flex flex-col items-center justify-center;
+		margin-top: 4.5rem; /* Space for fixed header */
+		margin-bottom: 1rem;
 	}
 
 	.stage-navigation {
-		@apply flex justify-between items-center mx-auto mb-2;
+		@apply flex justify-between items-center mx-auto;
 		font-size: clamp(0.75rem, 1.2vw, 1rem);
 		max-width: 80vw;
 		gap: 1vw;
@@ -322,6 +410,8 @@
 		width: auto;
 		min-width: auto;
 		max-width: 300px;
+		margin-left: auto;
+		margin-right: auto;
 	}
 
 	.progress-label {
@@ -367,29 +457,65 @@
 	}
 
 	.player-status-list {
-		@apply mt-6 mx-auto flex justify-center flex-wrap;
-		max-width: 800px;
-		gap: 2rem;
+		@apply mt-6 mx-auto;
+		max-width: 900px;
+		width: 100%;
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+		gap: 1.25rem;
+		/* Prevent overflow on the locked 16:9 host screen */
+		flex: 1;
+		min-height: 0;
+		overflow: hidden;
+		align-content: start;
+		/* Center sections when there’s only one (e.g. everyone voted/submitted) */
+		justify-items: center;
 	}
 
 	.status-section {
 		@apply mb-4;
-		min-width: 220px;
+		min-width: 0;
+		width: 100%;
+		max-width: 900px;
 	}
 
 	.status-title {
 		font-size: clamp(0.875rem, 1.8vh, 1.125rem);
 		@apply font-semibold text-surface-700 dark:text-surface-300 mb-3;
+		text-align: center;
 	}
 
 	.status-list {
-		@apply flex flex-col gap-2;
+		display: grid;
+		/* Smaller min so 3 columns comfortably fit on 16:9 */
+		grid-template-columns: repeat(var(--status-list-cols, 1), minmax(8rem, 1fr));
+		gap: 0.5rem;
+		/* Center the grid content within the section */
+		justify-content: center;
 	}
 
 	.status-item {
 		@apply flex items-center gap-2 py-2.5 px-4 rounded-lg font-medium;
 		font-size: clamp(0.875rem, 1.8vh, 1.125rem);
 		box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+		min-width: 0;
+	}
+
+	/* Compact host mode (10–12 players): tighten vertical spacing so lists never clip */
+	.host-game.compact .game-content :global(.prompter-box) {
+		margin-bottom: 1rem;
+	}
+	.host-game.compact .stats-container {
+		margin-top: 1rem;
+		gap: 1rem;
+	}
+	.host-game.compact .player-status-list {
+		margin-top: 1rem;
+		gap: 1rem;
+	}
+	.host-game.compact .status-item {
+		padding: 0.4rem 0.7rem;
+		font-size: clamp(0.8rem, 1.5vh, 1rem);
 	}
 
 	.status-item.submitted {

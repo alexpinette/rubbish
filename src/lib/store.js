@@ -122,4 +122,9 @@ export const round = {
 		/** @param {Round} $round */
 		($round) => $round.interruption ?? '',
 	),
+	read: derived(
+		currentRound,
+		/** @param {Round} $round */
+		($round) => $round?.read ?? { order: [], index: -1 },
+	),
 };

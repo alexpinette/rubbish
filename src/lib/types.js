@@ -8,7 +8,7 @@
  * @typedef {'INITIATED'|'STARTED'|'FINISHED'|'LOADING'|'UNKNOWN'} SessionState
  *
  * Possible round states
- * @typedef {'SELECT'|'GUESS'|'MARK'|'GROUP'|'VOTE'|'REVEAL'|'TALLY'|'LOADING'|'UNKNOWN'} RoundState
+ * @typedef {'SELECT'|'GUESS'|'MARK'|'GROUP'|'READ'|'VOTE'|'REVEAL'|'TALLY'|'LOADING'|'UNKNOWN'} RoundState
  *
  * Inactive player states
  * @typedef {'KICKED'|'OUTSIDER'|'READY'|'LOADING'|'UNKNOWN'} PlayerState
@@ -50,6 +50,7 @@
  * @property {Category} category - category for the round
  * @property {Object.<string, Guess>} guesses - a key-value pair of guesses where the key is a user and value is the guess
  * @property {Object.<string, string>} votes - a key value pair of guesser and the group they've picked
+ * @property {{order: string[], index: number}} [read] - readout stage sync payload (group order + current index)
  *
  * Guess data structure
  * @typedef {Object} Guess

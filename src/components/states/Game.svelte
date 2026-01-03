@@ -8,6 +8,7 @@
 	import Guess from '../round/Guess.svelte';
 	import Group from '../round/Group.svelte';
 	import Mark from '../round/Mark.svelte';
+	import Read from '../round/Read.svelte';
 	import Select from '../round/Select.svelte';
 	import Tally from '../round/Tally.svelte';
 	import Vote from '../round/Vote.svelte';
@@ -32,6 +33,7 @@
 		[ROUND_STATES.GUESS]: Guess,
 		[ROUND_STATES.MARK]: Mark,
 		[ROUND_STATES.GROUP]: Group,
+		[ROUND_STATES.READ]: Read,
 		[ROUND_STATES.VOTE]: Vote,
 		[ROUND_STATES.REVEAL]: Reveal,
 		[ROUND_STATES.TALLY]: Tally,

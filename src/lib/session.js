@@ -8,7 +8,7 @@
  * @typedef {import('@sveltejs/kit').Cookies} Cookies
  */
 
-import { CLIENT_TYPES, DEFAULT_CUSTOM_PROMPT, ROUNDS, ROUND_STATES, SESSION_STATES } from '$lib/constants';
+import { CLIENT_TYPES, DEFAULT_CUSTOM_PROMPT, ROUNDS, ROUND_STATES, SESSION_STATES, UNKNOWN } from '$lib/constants';
 import config from '$lib/config';
 import { getRandomPair, getPhonyResponse, loadVocabs } from '$lib/vocab';
 import { dbRef } from '$lib/firebase/server';
@@ -102,12 +102,37 @@ export class SessionManager {
 	 * @returns {string} - dasher username
 	 */
 	getNextDasher(excluded = []) {
-		const subset = this.players.filter((player) => !excluded.includes(player));
-		// For the first round (current === 0), pick a random dasher
-		// For subsequent rounds, cycle through players
-		if (this.session.current === 0) {
-			return subset[Math.floor(Math.random() * subset.length)];
+		const players = this.players.filter((p) => !excluded.includes(p));
+		if (players.length === 0) return UNKNOWN;
+		if (players.length === 1) return players[0];
+
+		// Build "used in current cycle" by walking rounds in order and clearing once all players have been dasher.
+		// This guarantees: no repeat until everyone has had a turn.
+		/** @type {Set<string>} */
+		const usedInCycle = new Set();
+		const rounds = this.session.rounds ?? {};
+		const maxRound = Number(this.session.current ?? 0);
+		for (let i = 1; i <= maxRound; i++) {
+			const d = rounds?.[i]?.dasher;
+			if (!d || d === UNKNOWN) continue;
+			if (!players.includes(d)) continue; // ignore dashers who are no longer in the session
+			usedInCycle.add(d);
+			if (usedInCycle.size === players.length) {
+				usedInCycle.clear();
+			}
 		}
-		return subset[this.session.current % subset.length];
+
+		const lastDasher = rounds?.[maxRound]?.dasher;
+		let remaining = players.filter((p) => !usedInCycle.has(p));
+
+		// If everyone has been dasher in the current cycle (or we're at a cycle boundary), reset eligibility.
+		if (remaining.length === 0) remaining = [...players];
+
+		// Avoid back-to-back repeat when possible (even across cycle boundaries).
+		if (remaining.length > 1 && lastDasher && remaining.includes(lastDasher)) {
+			remaining = remaining.filter((p) => p !== lastDasher);
+		}
+
+		return remaining[Math.floor(Math.random() * remaining.length)];
 	}
 }

@@ -27,7 +27,7 @@ describe('guessing', () => {
 		);
 		await submit(mockCookies, mockParams, mockRequest);
 		expect(mockUpdate).toHaveBeenCalledWith({
-			[`${GUESSES}/P1`]: { ...DEFAULT_GUESS, response: 'Something', double: true },
+			[`${GUESSES}/P1`]: { ...DEFAULT_GUESS, response: 'Something.', double: true },
 		});
 	});
 	it('should continue to the next stage', async () => {

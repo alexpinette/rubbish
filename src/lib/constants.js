@@ -62,6 +62,7 @@ export const ROUND_STATES = {
 	GUESS: 'GUESS',
 	MARK: 'MARK',
 	GROUP: 'GROUP',
+	READ: 'READ',
 	VOTE: 'VOTE',
 	REVEAL: 'REVEAL',
 	TALLY: 'TALLY',

@@ -7,6 +7,8 @@
 	import { DOUBLE_BLUFF, GUESS, SESSION, USERNAME } from '$lib/constants';
 	import { session, round } from '$lib/store';
 	import { getButtonVariant } from '$lib/utils';
+	import { normalizeGuess } from '$lib/guessNormalize';
+	import { enhance } from '$app/forms';
 	import {
 		faCheckCircle,
 		faXmark,
@@ -27,10 +29,15 @@
 	let guess = '';
 	let /** @type {HTMLFormElement} */ form;
 	let doubleBluff = false;
+	let lastNormalized = '';
+	let lastOriginal = '';
+	let lastChanged = false;
 	$: submitButtonIsDisabled = guess.length < config.customPrompt.minResponseLength;
 	$: buttonVariant = getButtonVariant(submitButtonIsDisabled);
 	$: isDasher = $dasher === user;
 	$: submittedGuess = $guesses[user]?.response ?? '';
+	$: normalizedPreview = normalizeGuess(guess, config.customPrompt.maxResponseLength);
+	$: willChange = guess.trim().length > 0 && normalizedPreview !== guess.trim();
 	$: guessing = $players.length - Object.keys($guesses).length - 1;
 	$: guessers = $players
 		.filter((player) => player !== $dasher)
@@ -48,6 +55,20 @@
 		? 'Wait for guesser submissions...'
 		: `Guess the ${response} of the ${prompt} shown on the screen`;
 	onMount(() => setInterval(() => seconds--, 1000));
+
+	function enhanceGuessSubmit() {
+		// Snapshot local values at submit-time (in case user edits quickly)
+		const pendingOriginal = guess;
+		const pendingNormalized = normalizedPreview;
+		return async ({ result }) => {
+			if (result.type === 'success') {
+				const data = result.data ?? {};
+				lastOriginal = String(data.original ?? pendingOriginal);
+				lastNormalized = String(data.normalized ?? pendingNormalized);
+				lastChanged = Boolean(data.changed ?? (lastOriginal !== lastNormalized));
+			}
+		};
+	}
 </script>
 
 <p class="text-lg text-center pb-5">{message}</p>
@@ -60,12 +81,19 @@
 	id="guessing"
 	method="POST"
 	action="?/guess.submit"
+	use:enhance={enhanceGuessSubmit}
 >
 	<input type="text" name="session" value={JSON.stringify($data)} hidden />
 	<!-- Input area -->
 	{#if !isDasher && submitted}
 		<p class="font-bold py-2">Guess submitted</p>
 		<p class="italic">Your guess: "{submittedGuess}"</p>
+		{#if lastChanged && lastNormalized}
+			<p class="text-sm mt-3 text-primary-500">
+				Note: we cleaned it up to match standard punctuation/casing:
+				<span class="italic">"{lastNormalized}"</span>
+			</p>
+		{/if}
 	{/if}
 	{#if !isDasher && seconds > 0 && !submitted}
 		<!-- Timer -->
@@ -87,6 +115,11 @@
 			maxlength={config.customPrompt.maxResponseLength}
 			required
 		/>
+		{#if willChange}
+			<p class="text-xs text-primary-500 -mt-3 mb-4">
+				Will be submitted as: <span class="italic">"{normalizedPreview}"</span>
+			</p>
+		{/if}
 		<br />
 		<SlideToggle
 			size="sm"

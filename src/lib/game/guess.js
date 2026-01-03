@@ -11,7 +11,9 @@ import {
 	ROUND_STATES,
 	USERNAME,
 } from '$lib/constants';
+import config from '$lib/config';
 import { parseSessionRequest } from '$lib/game/helpers';
+import { normalizeGuess } from '$lib/guessNormalize';
 import { getRoundScores } from '$lib/score';
 
 /**
@@ -28,9 +30,12 @@ export async function submit(cookies, params, request) {
 	}
 	
 	const submission = String(form.get(GUESS));
+	const normalized = normalizeGuess(submission, config.customPrompt.maxResponseLength);
 	const doubleBluff = Boolean(form.get(DOUBLE_BLUFF));
-	const payload = { ...DEFAULT_GUESS, response: submission, double: doubleBluff };
+	const payload = { ...DEFAULT_GUESS, response: normalized, double: doubleBluff };
 	await sm.roundRef.update({ [`${GUESSES}/${user}`]: payload });
+
+	return { original: submission, normalized, changed: submission !== normalized };
 }
 
 /**

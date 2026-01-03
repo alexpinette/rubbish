@@ -27,8 +27,7 @@ describe('voting stage', () => {
 		);
 		await proceed(mockCookies, mockParams, mockRequest);
 		expect(mockUpdate).toHaveBeenCalledWith({
-			scoreboard: expect.anything(),
-			'rounds/1/state': ROUND_STATES.TALLY,
+			'rounds/1/state': ROUND_STATES.REVEAL,
 		});
 	});
 });

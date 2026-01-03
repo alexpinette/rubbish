@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
 import { createParseSessionRequestMock, setupMocks } from '../../support/mocks.js';
 import { REFS, ROUND_STATES } from '$lib/constants.js';
 import { proceed } from '$lib/game/mark';
@@ -10,6 +10,12 @@ beforeAll(async () => {
 });
 
 describe('mark responses', () => {
+	beforeEach(() => {
+		// Reset shared dummy session mutations from other tests
+		dummySessionManager.session.ais = 0;
+		dummySessionManager.session.current = 1;
+	});
+
 	it('should assign correct guesses to submitters', async () => {
 		const { mockCookies, mockRequest, mockParams, mockUpdate } = await setupMocks(
 			'P1',
@@ -78,7 +84,7 @@ describe('mark responses', () => {
 		);
 		await proceed(mockCookies, mockParams, mockRequest);
 		expect(mockUpdate).toHaveBeenCalledWith({
-			'rounds/1/state': ROUND_STATES.VOTE,
+			'rounds/1/state': ROUND_STATES.READ,
 			'rounds/1/guesses/P2/correct': true,
 			'rounds/1/guesses/P3/correct': true,
 			'rounds/1/guesses/NPC-0': {
@@ -87,6 +93,10 @@ describe('mark responses', () => {
 				double: false,
 				group: `NPC 0`,
 				automatic: true,
+			},
+			'rounds/1/read': {
+				index: -1,
+				order: expect.arrayContaining(['Group 2', 'NPC 0', 'True Response']),
 			},
 		});
 	});

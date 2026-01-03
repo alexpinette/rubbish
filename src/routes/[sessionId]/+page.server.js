@@ -6,6 +6,7 @@ import { prompt as selectPrompt } from '$lib/game/select';
 import { submit as guessSubmit, proceed as guessProceed } from '$lib/game/guess';
 import { proceed as markProceed } from '$lib/game/mark';
 import { proceed as groupProceed } from '$lib/game/group';
+import { next as readNext, skip as readSkip } from '$lib/game/read';
 import { cast as voteCast, proceed as voteProceed } from '$lib/game/vote';
 import { proceed as revealProceed } from '$lib/game/reveal';
 import { proceed as tallyProceed } from '$lib/game/tally';
@@ -32,6 +33,8 @@ const actionMap = {
 	'guess.continue': guessProceed,
 	'mark.continue': markProceed,
 	'group.continue': groupProceed,
+	'read.next': readNext,
+	'read.skip': readSkip,
 	'vote.cast': voteCast,
 	'vote.continue': voteProceed,
 	'reveal.proceed': revealProceed,
@@ -41,7 +44,7 @@ const actionMap = {
 const mainActions = Object.fromEntries(
 	Object.entries(actionMap).map(([key, f]) => [
 		key,
-		async ({ cookies, params, request }) => f(cookies, params, request),
+		async ({ cookies, params, request }) => await f(cookies, params, request),
 	]),
 );
 

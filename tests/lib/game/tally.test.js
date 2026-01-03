@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
 import { createParseSessionRequestMock, setupMocks } from '../../support/mocks.js';
 import { REFS, ROUND_STATES, SESSION_STATES } from '$lib/constants.js';
 import { proceed } from '$lib/game/tally';
@@ -9,6 +9,13 @@ beforeAll(async () => {
 });
 
 describe('tally stage', () => {
+	beforeEach(() => {
+		// Reset shared dummy session mutations from other tests
+		dummySessionManager.session.ais = 0;
+		dummySessionManager.session.current = 1;
+		dummySessionManager.session.limit = 4;
+	});
+
 	it('should continue to the next round', async () => {
 		const { mockCookies, mockRequest, mockParams, mockUpdate } = await setupMocks(
 			'P1',
@@ -31,7 +38,8 @@ describe('tally stage', () => {
 		});
 	});
 	it('should end the game', async () => {
-		dummySessionManager.session.current = dummySessionManager.session.limit;
+		// End game when current === limit, while keeping a valid current round in dummy data.
+		dummySessionManager.session.limit = dummySessionManager.session.current;
 		const { mockCookies, mockRequest, mockParams, mockUpdate } = await setupMocks(
 			'P1',
 			{},

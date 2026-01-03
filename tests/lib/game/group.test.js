@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
 import { createParseSessionRequestMock, setupMocks } from '../../support/mocks.js';
 import { REFS, ROUND_STATES } from '$lib/constants.js';
 import { proceed } from '$lib/game/group';
@@ -9,6 +9,12 @@ beforeAll(async () => {
 });
 
 describe('grouping responses', () => {
+	beforeEach(() => {
+		// Reset shared dummy session mutations from other tests
+		dummySessionManager.session.ais = 0;
+		dummySessionManager.session.current = 1;
+	});
+
 	it('should assign responses to groups', async () => {
 		const { mockCookies, mockRequest, mockParams, mockUpdate } = await setupMocks(
 			'P1',
@@ -19,8 +25,12 @@ describe('grouping responses', () => {
 		expect(mockUpdate).toHaveBeenCalledWith({
 			'guesses/P2/group': 'Group 1',
 			'guesses/P3/group': 'Group 2',
-			state: ROUND_STATES.VOTE,
+			state: ROUND_STATES.READ,
 			interruption: '',
+			read: {
+				index: -1,
+				order: expect.arrayContaining(['Group 1', 'Group 2', 'True Response']),
+			},
 		});
 	});
 	it('should interrupt the session if there is only 1 distinct group and not AIs', async () => {
@@ -55,8 +65,12 @@ describe('grouping responses', () => {
 			},
 			'guesses/P2/group': 'Group 1',
 			'guesses/P3/group': 'Group 1',
-			state: ROUND_STATES.VOTE,
+			state: ROUND_STATES.READ,
 			interruption: '',
+			read: {
+				index: -1,
+				order: expect.arrayContaining(['Group 1', 'NPC 0', 'True Response']),
+			},
 		});
 	});
 });

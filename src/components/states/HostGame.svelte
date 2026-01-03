@@ -6,6 +6,7 @@
 	import Prompter from '../parts/Prompter.svelte';
 	import Score from '../parts/Score.svelte';
 	import RevealHost from '../round/RevealHost.svelte';
+	import ReadHost from '../round/ReadHost.svelte';
 	import { getCategoryWords } from '$lib/utils';
 	import { faCheckCircle, faClock } from '@fortawesome/free-solid-svg-icons';
 	import Fa from 'svelte-fa';
@@ -167,6 +168,8 @@
 			<div class="status-message">
 				<PlayerName player={$dasher} showBackground={false} showBorder={false} /> is grouping similar guesses...
 			</div>
+		{:else if $state === ROUND_STATES.READ}
+			<ReadHost />
 		{:else if $state === ROUND_STATES.VOTE}
 			<Prompter withInfo={false} isHostView={true} />
 			<div class="progress-info vote-info">

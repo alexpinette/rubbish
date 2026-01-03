@@ -1,6 +1,7 @@
 import { SESSION_ID, SESSION_STATES, UID, USERNAME } from '$lib/constants';
 import { getSession } from '$lib/firebase/server';
 import { enquire } from '$lib/contact';
+import { normalizeSessionId, normalizeUsername } from '$lib/normalize';
 
 /** @type {import('./$types').PageServerLoad} */
 export async function load({ cookies }) {
@@ -12,8 +13,8 @@ export async function load({ cookies }) {
 	 * to ensure only devices that actually joined can resume
 	 */
 	const joinableStates = [SESSION_STATES.INITIATED, SESSION_STATES.STARTED];
-	const username = cookies.get(USERNAME) || '';
-	const sessionId = cookies.get(SESSION_ID) || '';
+	const username = normalizeUsername(cookies.get(USERNAME) || '');
+	const sessionId = normalizeSessionId(cookies.get(SESSION_ID) || '');
 	const uid = cookies.get(UID) || '';
 	
 	if (username === '' || sessionId === '' || uid === '') return { activeSessionId: '' };

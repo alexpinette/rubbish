@@ -8,7 +8,7 @@
 	import { getCategoryWords } from '$lib/utils';
 	import { session, round } from '$lib/store';
 	import { getContext } from 'svelte';
-	import { faCircleExclamation, faDotCircle } from '@fortawesome/free-solid-svg-icons';
+	import { faCircleExclamation } from '@fortawesome/free-solid-svg-icons';
 	import { shuffle } from '$lib/utils';
 	import { TRUE_RESPONSE } from '$lib/constants';
 	import Fa from 'svelte-fa';
@@ -156,13 +156,7 @@
 	</span>
 {/if}
 {#if stillVoting.length > 0}
-	<p class="text-lg pt-5">Still voting:</p>
-	<ul>
-		{#each stillVoting as user}
-			<li>
-				<span class="badge"><Fa icon={faDotCircle} /></span>
-				<span class="flex-auto">{user}</span>
-			</li>
-		{/each}
-	</ul>
+	<p class="text-center text-sm pt-5">
+		Waiting for <strong>{stillVoting.length}</strong> more vote{stillVoting.length === 1 ? '' : 's'}...
+	</p>
 {/if}

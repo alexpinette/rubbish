@@ -16,6 +16,7 @@ import { createNewSessionId, dbRef, validateToken } from '$lib/firebase/server';
 import { fail, redirect } from '@sveltejs/kit';
 import { enquire } from '$lib/contact.js';
 import { client } from '$lib/analytics.js';
+import { normalizeUsername } from '$lib/normalize';
 
 /** @type {import('./$types').Actions} */
 export const actions = {
@@ -25,7 +26,7 @@ export const actions = {
 		const data = await request.formData();
 		const uid = String(cookies.get(UID));
 		// Host doesn't need a username, use "Host" as default
-		const creator = String(data.get(USERNAME) || 'Host');
+		const creator = normalizeUsername(String(data.get(USERNAME) || 'Host')) || 'HOST';
 		const limit = Number(data.get('round-slider'));
 		const categories = config.categories
 			.filter((category) => {

@@ -5,6 +5,7 @@
 
 import { goto } from '$app/navigation';
 import config from '$lib/config';
+export { normalizeUpperAlnum, normalizeUsername, normalizeSessionId } from '$lib/normalize';
 
 /** @param {boolean} disabled */
 export const getButtonVariant = (disabled) => (disabled ? 'variant-ghost' : 'variant-filled');

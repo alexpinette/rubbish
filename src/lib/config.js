@@ -22,7 +22,7 @@ export default {
 	},
 	sessionId: {
 		numCharacters: 4,
-		numIntegers: 0,
+		numIntegers: 1,
 	},
 	rounds: {
 		default: 4,

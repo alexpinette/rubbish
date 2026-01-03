@@ -3,10 +3,17 @@
 	import Entry from '../../components/forms/Entry.svelte';
 	import { CLIENT_TYPES } from '$lib/constants';
 	import { SlideToggle } from '@skeletonlabs/skeleton';
+	import config from '$lib/config';
+	import { normalizeSessionId } from '$lib/normalize';
 
 	let username = '';
 	let sessionId = $page.url.searchParams.get('id') || '';
 	let joinAsSpectator = false;
+
+	const sessionIdLen = (config.sessionId?.numCharacters ?? 4) + (config.sessionId?.numIntegers ?? 0);
+	function onSessionIdInput(e) {
+		sessionId = normalizeSessionId(e.currentTarget?.value ?? '');
+	}
 </script>
 
 <main>
@@ -19,8 +26,12 @@
 				title="sessionId"
 				name="sessionId"
 				type="text"
-				placeholder="ABCD"
+				placeholder="ABCD1"
 				bind:value={sessionId}
+				on:input={onSessionIdInput}
+				autocomplete="off"
+				autocapitalize="characters"
+				maxlength={sessionIdLen}
 				required
 			/>
 		</label>

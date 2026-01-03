@@ -97,7 +97,7 @@
 		</div>
 
 		<div class="final-scores">
-			<Score showCheatsheet={false} />
+			<Score showCheatsheet={false} hostFit={true} />
 		</div>
 
 		<div class="return-home-section">
@@ -296,16 +296,10 @@
 	.final-scores :global(.tally-container) {
 		@apply w-full;
 		max-width: 100%;
+		height: 100%;
 	}
 
-	.final-scores :global(.tally-columns) {
-		grid-template-columns: 1fr; /* Single column for final scores */
-	}
-
-	.final-scores :global(.players-grid) {
-		grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-		gap: 2.5rem;
-	}
+	/* Let `Score` control grid sizing in host-fit mode */
 
 	.return-home-section {
 		flex-shrink: 0;

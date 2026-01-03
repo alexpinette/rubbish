@@ -11,13 +11,14 @@ import { proceed as revealProceed } from '$lib/game/reveal';
 import { proceed as tallyProceed } from '$lib/game/tally';
 import { enquire } from '$lib/contact';
 import { loadVocabs } from '$lib/vocab.js';
+import { normalizeUsername } from '$lib/normalize';
 
 /** @type {import('./$types').PageServerLoad} */
 export async function load({ cookies, params }) {
 	await loadVocabs();
 	return {
 		session: await getSession(params.sessionId),
-		username: cookies.get(USERNAME) || '',
+		username: normalizeUsername(cookies.get(USERNAME) || ''),
 	};
 }
 

@@ -12,7 +12,7 @@
 		TRUE_RESPONSE,
 	} from '$lib/constants';
 	import { enhance } from '$app/forms';
-	import { onMount } from 'svelte';
+	import { onMount, tick } from 'svelte';
 	import { fade, fly, scale } from 'svelte/transition';
 	import { quintOut, elasticOut } from 'svelte/easing';
 	import { getContext } from 'svelte';
@@ -76,11 +76,28 @@
 	// ---------------------------------------------------------------------------
 	let /** @type {HTMLDivElement | null} */ answersContainerEl = null;
 	let answersContainerHeight = 0;
+	let answersContainerWidth = 0;
+
+	// Estimate per-card width (each card spans 2 of the "double columns")
+	$: cardWidthPx =
+		answersContainerWidth && gridCols
+			? Math.max(140, Math.floor((answersContainerWidth / gridCols) * 2 - 16))
+			: 240;
 
 	// Answer text scaling heuristic (avoid scroll/cutoff for long answers)
 	$: allAnswerTexts = [$response, ...phonyAnswers.map((pa) => pa.response)];
 	$: maxAnswerLength =
 		allAnswerTexts.length > 0 ? Math.max(...allAnswerTexts.map((t) => t?.length ?? 0)) : 0;
+	// Longest single token (e.g. "WWWWWW...") is what breaks wrapping the most
+	$: maxTokenLength =
+		allAnswerTexts.length > 0
+			? Math.max(
+					...allAnswerTexts.map((t) => {
+						const words = String(t ?? '').split(/\s+/);
+						return Math.max(...words.map((w) => w.length || 0), 0);
+					}),
+				)
+			: 0;
 	// Length-based scaling (keeps long answers readable without scrolling)
 	$: lengthFontScale =
 		maxAnswerLength > 280
@@ -126,7 +143,8 @@
 	// Final font-size in pixels (avoid CSS calc() multiplication — not reliably supported across browsers)
 	// Tuned for TV/monitor host display.
 	const BASE_ANSWER_FONT_PX = 20;
-	const MIN_ANSWER_FONT_PX = 18;
+	// Allow smaller fonts only when needed (dense rows / long token) so content never overflows.
+	$: MIN_ANSWER_FONT_PX = totalRowCount >= 3 || maxTokenLength >= 22 ? 14 : 18;
 	const MAX_ANSWER_FONT_PX = 24;
 	$: answerFontPx = Math.round(
 		Math.min(
@@ -134,6 +152,91 @@
 			Math.max(MIN_ANSWER_FONT_PX, BASE_ANSWER_FONT_PX * answerFontScale),
 		),
 	);
+
+	/**
+	 * Per-card font fitting: shrink only the cards that need it so text never gets cut off.
+	 * Heuristic estimates how many wrapped lines a string will take at a given font size.
+	 * @param {string} text
+	 */
+	function computeAnswerFontPx(text) {
+		const t = String(text ?? '');
+		if (!t) return answerFontPx;
+
+		// Reserve vertical space inside the fixed-height card:
+		// - card padding (0.5rem top + bottom) ≈ 16px
+		// - answer-content padding-top (3.5rem) ≈ 56px
+		// - answer-content padding-bottom (0.5rem) ≈ 8px
+		// - submitter bar min-height ≈ 32px
+		const RESERVED_Y_PX = 112;
+		const availH = Math.max(24, minCardHeight - RESERVED_Y_PX);
+
+		// Start from the global font, then shrink only if needed.
+		let font = answerFontPx;
+		const minFont = 12;
+		const lineHeight = 1.3;
+
+		while (font > minFont) {
+			const maxLines = Math.max(1, Math.floor(availH / (font * lineHeight)));
+			// Rough chars/line estimate using avg character width (~0.6em)
+			const charsPerLine = Math.max(8, Math.floor(cardWidthPx / (font * 0.6)));
+			const linesNeeded = Math.max(1, Math.ceil(t.length / charsPerLine));
+
+			if (linesNeeded <= maxLines) break;
+			font -= 1;
+		}
+
+		return font;
+	}
+
+	// DOM-measured fitter (handles zoom/subpixel differences far better than heuristics)
+	let fitRaf = 0;
+	function scheduleFit() {
+		if (fitRaf) cancelAnimationFrame(fitRaf);
+		fitRaf = requestAnimationFrame(() => {
+			fitRaf = 0;
+			void fitAllAnswerText();
+		});
+	}
+
+	async function fitAllAnswerText() {
+		if (!answersContainerEl) return;
+		await tick();
+
+		/** @type {NodeListOf<HTMLElement>} */
+		const cards = answersContainerEl.querySelectorAll('.answer-card');
+		for (const card of cards) {
+			const content = card.querySelector('.answer-content');
+			const text = card.querySelector('.answer-text');
+			if (!(content instanceof HTMLElement) || !(text instanceof HTMLElement)) continue;
+
+			// Available height is the content box MINUS padding (text cannot occupy padding)
+			const contentStyle = getComputedStyle(content);
+			const padTop = parseFloat(contentStyle.paddingTop || '0') || 0;
+			const padBot = parseFloat(contentStyle.paddingBottom || '0') || 0;
+			const availH = Math.max(0, content.clientHeight - padTop - padBot);
+			if (!availH) continue;
+
+			let font = Math.floor(parseFloat(getComputedStyle(text).fontSize || '0')) || answerFontPx;
+			const minFont = 10;
+
+			// Reset to the (heuristic) card variable first so we don't only ever shrink
+			const resetFont = computeAnswerFontPx(text.textContent ?? '');
+			card.style.setProperty('--answer-font-px', `${resetFont}px`);
+			await tick();
+			font = Math.floor(parseFloat(getComputedStyle(text).fontSize || '0')) || resetFont;
+
+			// Shrink until it fits (include 1px buffer for zoom rounding)
+			let guard = 24;
+			while (guard-- > 0) {
+				const fits = text.scrollHeight <= availH + 1;
+				if (fits) break;
+				font = Math.max(minFont, font - 1);
+				card.style.setProperty('--answer-font-px', `${font}px`);
+				await tick();
+				if (font === minFont) break;
+			}
+		}
+	}
 
 	// Determine grid columns based on phony answer count
 	// Use double columns to allow brick pattern positioning (cards can span 2 columns)
@@ -264,7 +367,14 @@
 
 	// Voter chip display: avoid “missing votes” by capping visible chips and showing +N.
 	$: maxPhonyVoterChips = gridCols >= 8 ? 4 : 6; // smaller cards when 4-across
-	$: maxRealVoterChips = gridCols >= 8 ? 6 : 8; // real answer is larger
+	// Keep the real answer to the same “4 + N” rule (prevents cutoffs on certain zoom levels)
+	$: maxRealVoterChips = 4;
+
+	// Voter chip sizing for dense layouts (prevents overflow on 4-across / big lobbies)
+	$: voterChipFontPx = gridCols >= 8 ? 11 : 12;
+	$: voterChipPadY = gridCols >= 8 ? '4px' : '6px';
+	$: voterChipPadX = gridCols >= 8 ? '8px' : '10px';
+	$: voterChipGap = gridCols >= 8 ? '4px' : '8px';
 
 	// Create shuffled array of phony answers in random order for appearance
 	$: {
@@ -291,15 +401,32 @@
 			ro = new ResizeObserver((entries) => {
 				const entry = entries[0];
 				if (!entry) return;
-				answersContainerHeight = Math.floor(entry.contentRect.height);
+				// Subtract padding + a small zoom safety buffer to avoid bottom-row clipping at certain zoom levels.
+				const ZOOM_SAFE_PX = 6;
+				if (answersContainerEl) {
+					const cs = getComputedStyle(answersContainerEl);
+					const padY =
+						(parseFloat(cs.paddingTop || '0') || 0) + (parseFloat(cs.paddingBottom || '0') || 0);
+					const padX =
+						(parseFloat(cs.paddingLeft || '0') || 0) + (parseFloat(cs.paddingRight || '0') || 0);
+					answersContainerHeight = Math.max(0, Math.floor(entry.contentRect.height - padY - ZOOM_SAFE_PX));
+					answersContainerWidth = Math.max(0, Math.floor(entry.contentRect.width - padX));
+				} else {
+					answersContainerHeight = Math.max(0, Math.floor(entry.contentRect.height - ZOOM_SAFE_PX));
+					answersContainerWidth = Math.max(0, Math.floor(entry.contentRect.width));
+				}
+				scheduleFit();
 			});
 			if (answersContainerEl) ro.observe(answersContainerEl);
 		}
+		// Initial fit pass (in case RO doesn’t fire immediately)
+		scheduleFit();
 
 		// Stage 1: Phony answers appear one by one in random order (slower for suspense)
 		const appearInterval = setInterval(() => {
 			if (visiblePhonyCount < shuffledPhonyAnswers.length) {
 				visiblePhonyCount++;
+				scheduleFit();
 			} else {
 				clearInterval(appearInterval);
 				// Stage 2: After all phony answers are visible, pause before showing real answer
@@ -323,6 +450,7 @@
 									// Wait before revealing phony answers (voting and submission assignments)
 									setTimeout(() => {
 										stage = 'revealing-phony';
+										scheduleFit();
 										revealedPhonyAnswers = [];
 										currentPhonyRevealIndex = 0;
 										showingVotersForCurrentPhony = true;
@@ -361,6 +489,7 @@
 			// Map to placement index (real answer is 0, phony answers start at 1)
 			const placementIndex = currentPhonyRevealIndex + 1;
 			addPlacedVoteBox(placementIndex);
+			scheduleFit();
 
 			// Check if there are voters - if not, skip the wait time
 			const hasVoters = currentPhony.voters && currentPhony.voters.length > 0;
@@ -370,6 +499,7 @@
 			setTimeout(() => {
 				showingVotersForCurrentPhony = false;
 				revealedPhonyAnswers = [...revealedPhonyAnswers, currentPhony];
+				scheduleFit();
 				// Wait before moving to next phony answer
 				setTimeout(() => {
 					currentPhonyRevealIndex++;
@@ -413,7 +543,7 @@
 		<div
 			class="answers-grid extracted-grid"
 			class:transitioning={transitioningStage}
-			style="--extracted-cols: {gridCols}; --min-card-height: {minCardHeight}px; --answer-font-px: {answerFontPx}px; grid-template-columns: repeat({gridCols}, 1fr);"
+			style="--extracted-cols: {gridCols}; --min-card-height: {minCardHeight}px; --card-height: {minCardHeight}px; --answer-font-px: {answerFontPx}px; --voter-chip-font-px: {voterChipFontPx}px; --voter-chip-pad-y: {voterChipPadY}; --voter-chip-pad-x: {voterChipPadX}; --voter-chip-gap: {voterChipGap}; grid-template-columns: repeat({gridCols}, 1fr);"
 		>
 			<!-- Real answer - always in DOM to reserve space, but hidden until all phony answers appear -->
 			<div
@@ -427,6 +557,7 @@
 					class:phony={!realAnswerRevealed}
 					class:extracted-real={realAnswerRevealed}
 					class:dramatic-reveal={realAnswerRevealed}
+					style="--answer-font-px: {computeAnswerFontPx($response)}px;"
 				>
 					{#if realAnswerRevealed}
 						<div class="real-answer-glow"></div>
@@ -479,6 +610,7 @@
 						class:revealed={isRevealed}
 						class:dramatic-reveal={isRevealed}
 						class:top-fooler={isTopFooler && isRevealed}
+						style="--answer-font-px: {computeAnswerFontPx(phonyAnswer.response)}px;"
 					>
 						<div class="answer-content">
 							<p class="answer-text">{phonyAnswer.response}</p>
@@ -512,8 +644,9 @@
 								</div>
 							{/if}
 						{/if}
-						{#if isRevealed}
-							<div class="answer-submitter">
+						<!-- Always reserve space for submitter so card height never changes -->
+						<div class="answer-submitter" class:visible={isRevealed}>
+							{#if isRevealed}
 								<span class="submitter-name"
 									>Submitted by <PlayerName
 										player={phonyAnswer.player}
@@ -522,8 +655,8 @@
 										size="small"
 									/></span
 								>
-							</div>
-						{/if}
+							{/if}
+						</div>
 					</div>
 				</div>
 			{/each}
@@ -559,10 +692,11 @@
 		align-items: center;
 		justify-content: flex-start;
 		min-height: 0;
-		/* Lock to 16:9 aspect ratio for TV/monitor - ensure nothing goes off screen */
-		aspect-ratio: 16 / 9;
-		max-height: 100vh;
-		max-width: min(90vw, calc(100vh * 16 / 9)); /* Maintain 16:9 ratio, but don't exceed 90vw */
+		/* IMPORTANT: RevealHost is rendered inside HostGame (which already locks to 16:9).
+		   So size to the parent to avoid bottom clipping when HostGame shows the “dasher” chip. */
+		height: 100%;
+		max-height: 100%;
+		max-width: 100%;
 		overflow: hidden; /* No scrolling - everything must fit */
 		position: relative;
 	}
@@ -843,8 +977,10 @@
 		/* Cards fill 100% of their grid cell (container determines size) */
 		width: 100%;
 		max-width: 100%;
-		/* Use min-height instead of fixed height for responsiveness */
-		min-height: var(--min-card-height, 180px);
+		/* Fixed height per row so ALL cards remain the same size (no growth when submitter appears) */
+		height: var(--card-height, var(--min-card-height, 180px));
+		min-height: var(--card-height, var(--min-card-height, 180px));
+		max-height: var(--card-height, var(--min-card-height, 180px));
 		/* Rectangle shape - much wider than tall, but responsive */
 		display: flex;
 		flex-direction: column;
@@ -1026,8 +1162,8 @@
 		display: flex;
 		flex-direction: column;
 		justify-content: space-between;
-		/* Ensure player boxes overlay can extend beyond card */
-		overflow: visible;
+		/* Prevent any content (including long answers) from spilling outside card */
+		overflow: hidden;
 	}
 
 	.answer-card.phony {
@@ -1113,6 +1249,19 @@
 		@apply border-t border-surface-300 dark:border-surface-600;
 		margin-top: auto;
 		flex-shrink: 0;
+		/* Reserve height so layout never shifts */
+		min-height: 32px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		opacity: 0;
+		border-top-color: transparent;
+	}
+
+	.answer-submitter.visible {
+		opacity: 1;
+		@apply border-t border-surface-300 dark:border-surface-600;
+		transition: opacity 0.2s ease-out;
 	}
 
 	.submitter-name {
@@ -1130,8 +1279,8 @@
 		padding-top: 3.5rem;
 		padding-bottom: 0.5rem;
 		min-height: 2rem;
-		/* Allow content to scroll if needed, but prefer wrapping */
-		overflow-y: auto; /* Allow scrolling if content is too long */
+		/* No internal scrollbars on host view; we shrink per-card fonts instead */
+		overflow-y: hidden;
 		overflow-x: hidden;
 		flex-shrink: 1;
 		min-width: 0; /* Allow content to shrink in grid */
@@ -1143,17 +1292,20 @@
 	}
 
 	.answer-text {
-		font-size: clamp(20px, var(--answer-font-px, 22px), 24px);
+		margin: 0;
+		font-size: clamp(14px, var(--answer-font-px, 20px), 24px);
 		@apply font-semibold text-center text-surface-900 dark:text-surface-100;
 		word-wrap: break-word;
 		overflow-wrap: break-word;
+		overflow-wrap: anywhere;
 		word-break: break-word;
+		hyphens: auto;
 		line-height: 1.3;
 		max-width: 100%;
 		width: 100%;
 		/* Allow full text to display with natural wrapping */
 		display: block;
-		overflow: visible;
+		overflow: hidden;
 		text-overflow: unset;
 		white-space: normal;
 		box-sizing: border-box;
@@ -1186,7 +1338,7 @@
 		flex-direction: row;
 		align-items: center;
 		justify-content: center;
-		gap: 0.5rem;
+		gap: var(--voter-chip-gap, 8px);
 		z-index: 5;
 		pointer-events: none;
 		/* Background bar like Jackbox */
@@ -1225,9 +1377,9 @@
 
 	.player-box {
 		@apply bg-surface-50 dark:bg-surface-800 text-surface-900 dark:text-surface-100;
-		padding: 0.35rem 0.65rem;
+		padding: var(--voter-chip-pad-y, 6px) var(--voter-chip-pad-x, 10px);
 		border-radius: 0.5rem;
-		font-size: clamp(0.8rem, 1.2vh, 1rem);
+		font-size: var(--voter-chip-font-px, 12px);
 		@apply font-bold;
 		border: 2px solid;
 		@apply border-surface-400 dark:border-surface-600;

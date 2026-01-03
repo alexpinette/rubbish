@@ -1,13 +1,14 @@
 <script>
 	import config from '$lib/config';
 	import { getButtonVariant, handleError } from '$lib/utils';
+	import { normalizeUsername } from '$lib/normalize';
 	import { goto } from '$app/navigation';
 	import { enhance } from '$app/forms';
 	import { page } from '$app/stores';
 	import { getToastStore } from '@skeletonlabs/skeleton';
 
 	const toastStore = getToastStore();
-	let usernameRegex = /^[a-zA-Z][a-zA-Z0-9-]{0,11}$/;
+	let usernameRegex = new RegExp(`^[A-Z0-9]{1,${config.maxUsernameLength}}$`);
 	export let submitButtonEnabled = true;
 	export let username = '';
 	export let isHost = false; // Host doesn't need username
@@ -15,6 +16,10 @@
 	$: isButtonDisabled = !isValidUsername || !submitButtonEnabled;
 	$: buttonVariant = getButtonVariant(isButtonDisabled);
 	$: if ($page.form?.message) handleError(toastStore, new Error($page.form.message));
+
+	function onUsernameInput(e) {
+		username = normalizeUsername(e.currentTarget?.value ?? '');
+	}
 </script>
 
 <form method="POST" action="?/enter" use:enhance on:submit={() => localStorage.clear()}>
@@ -27,13 +32,17 @@
 				title="username"
 				name="username"
 				type="text"
-				placeholder="Player1"
+				placeholder="PLAYER1"
 				bind:value={username}
+				on:input={onUsernameInput}
+				autocomplete="off"
+				autocapitalize="characters"
+				maxlength={config.maxUsernameLength}
 				required
 			/>
 			{#if !isValidUsername && username.length > 0}
 				<p class="text-sm italic text-tertiary-700">
-					{config.maxUsernameLength} letters (must start with it), numbers and dashes
+					{config.maxUsernameLength} characters max. Only A–Z and 0–9.
 				</p>
 			{/if}
 		</label>
@@ -59,3 +68,5 @@
 		>Return home</button
 	>
 </div>
+
+ 

@@ -141,9 +141,6 @@
 							</div>
 							<div class="player-score">{score}</div>
 						</div>
-						{#if isLeader}
-							<div class="leader-badge">🏆</div>
-						{/if}
 					</div>
 			{/each}
 			</div>

@@ -31,7 +31,7 @@ const letters = 'abcdefghijklmnopqrstuvwxyz'.toUpperCase();
 
 const serviceAccount = {
 	type: 'service_account',
-	project_id: dev ? 'balderdash2-dev' : 'balderdash2-prod',
+	project_id: dev ? 'rubbish-3a564' : 'rubbish-prod',
 	private_key_id: dev ? PRIVATE_DEV_FB_KEY_ID : PRIVATE_PROD_FB_KEY_ID,
 	private_key: atob(dev ? PRIVATE_DEV_FB_KEY_B64 : PRIVATE_PROD_FB_KEY_B64).replace(/\\n/g, '\n'),
 	client_email: dev ? PRIVATE_DEV_FB_CLIENT_EMAIL : PRIVATE_PROD_FB_CLIENT_EMAIL,

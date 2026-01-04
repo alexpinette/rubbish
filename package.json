@@ -41,6 +41,9 @@
 		"bun-types": "latest"
 	},
 	"type": "module",
+	"engines": {
+		"node": ">=18.0.0 <=20.x"
+	},
 	"dependencies": {
 		"@floating-ui/dom": "1.6.0",
 		"@fortawesome/fontawesome-free": "^6.5.1",

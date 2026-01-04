@@ -103,7 +103,7 @@
 		<div class="return-home-section">
 			<button
 				type="button"
-				class="btn btn-lg variant-filled my-10"
+				class="btn btn-lg variant-filled"
 				on:click={() => returnHome(USERNAME, SESSION_ID)}>Return home</button
 			>
 		</div>
@@ -118,7 +118,7 @@
 		<div class="return-home-section">
 			<button
 				type="button"
-				class="btn btn-lg variant-filled my-10"
+				class="btn btn-lg variant-filled"
 				on:click={() => returnHome(USERNAME, SESSION_ID)}>Return home</button
 			>
 		</div>
@@ -265,9 +265,12 @@
 
 	.winner-announcement {
 		flex-shrink: 0;
-		@apply mb-2 w-full;
+		@apply mb-1 w-full;
 		max-width: 90vw;
 		text-align: center;
+		/* Ensure it doesn't take too much vertical space */
+		max-height: 20vh;
+		overflow: hidden;
 	}
 
 	.winner-title {
@@ -285,12 +288,14 @@
 		width: 100%;
 		max-width: 90vw;
 		text-align: center;
-		@apply mb-2;
+		@apply mb-1;
 		display: flex;
 		flex-direction: column;
 		justify-content: flex-start;
 		align-items: center;
 		min-height: 0;
+		/* Ensure it respects parent constraints and doesn't overflow */
+		overflow: hidden;
 	}
 
 	.final-scores :global(.tally-container) {
@@ -304,7 +309,8 @@
 	.return-home-section {
 		flex-shrink: 0;
 		@apply text-center w-full;
-		@apply my-4;
+		/* Reduced margin to ensure it fits within viewport */
+		@apply my-2;
 	}
 
 	/* Player Summary Styles */

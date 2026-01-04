@@ -213,21 +213,32 @@
 	.players-section {
 		@apply w-full text-center;
 		max-width: 600px;
+		/* Ensure players section can shrink if needed */
+		flex-shrink: 1;
+		min-height: 0;
+		overflow: hidden;
 	}
 
 	.players-container {
 		@apply mb-4;
+		/* No scrolling - content must fit by scaling */
+		overflow: hidden;
 	}
 
 	.players-list {
 		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+		/* Scale down grid for many players - use smaller min width when needed */
+		grid-template-columns: repeat(auto-fit, minmax(min(150px, 20vw), 1fr));
 		@apply gap-3;
+		/* Reduce gap when there are many players to fit more */
+		gap: clamp(0.5rem, 1.5vh, 0.75rem);
 	}
 
 	.player-item {
-		font-size: clamp(1rem, 2vh, 1.25rem);
-		@apply py-3 px-4 bg-surface-200 dark:bg-surface-800 border border-surface-300 dark:border-surface-700 rounded-lg font-medium;
+		/* Scale font size based on available space */
+		font-size: clamp(0.875rem, 1.8vh, 1.25rem);
+		/* Reduce padding when there are many players */
+		@apply py-2 px-3 bg-surface-200 dark:bg-surface-800 border border-surface-300 dark:border-surface-700 rounded-lg font-medium;
 	}
 
 	.no-players {

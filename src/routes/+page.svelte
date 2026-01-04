@@ -38,9 +38,8 @@
 	</div>
 	<!-- Description -->
 	<p class="my-5 text-center max-w-lg px-5 mx-auto">
-		The iconic party game of bluffing and trivia! Based on the classic Balderdash board game, 
-		guess or craft clever definitions for a mix of obscure words, people, and more! 
-		Perfect for 4-8 players seeking a fun, brain-teasing challenge!
+		The iconic party game of bluffing and trivia! Guess or craft clever definitions for a mix of
+		obscure words, people, and more! Perfect for 4-8 players seeking a fun, brain-teasing challenge!
 	</p>
 </div>
 

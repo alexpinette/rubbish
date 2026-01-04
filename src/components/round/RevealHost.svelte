@@ -127,11 +127,16 @@
 
 	// Calculate a card height that fits the available container height.
 	// This avoids clipping when there are many answers (e.g., 9-11 phony answers).
+	// Added extra buffer to prevent bottom-row cutoff at various zoom levels.
 	const GRID_GAP_Y_PX = 8; // 0.5rem
+	const CARD_HEIGHT_SAFETY_BUFFER = 4; // Extra pixels to prevent zoom-related cutoff
 	$: minCardHeight = answersContainerHeight
 		? Math.max(
 				120,
-				Math.floor((answersContainerHeight - (totalRowCount - 1) * GRID_GAP_Y_PX) / totalRowCount),
+				Math.floor(
+					(answersContainerHeight - (totalRowCount - 1) * GRID_GAP_Y_PX - CARD_HEIGHT_SAFETY_BUFFER) /
+						totalRowCount,
+				),
 			)
 		: 180;
 
@@ -401,14 +406,23 @@
 			ro = new ResizeObserver((entries) => {
 				const entry = entries[0];
 				if (!entry) return;
-				// Subtract padding + a small zoom safety buffer to avoid bottom-row clipping at certain zoom levels.
-				const ZOOM_SAFE_PX = 6;
+				// Increased zoom safety buffer to prevent bottom-row clipping at various zoom levels.
+				// Accounts for browser zoom rounding errors, subpixel rendering, and flexbox spacing.
+				// Note: RevealHost is rendered inside HostGame's .game-content (flex: 1), and the
+				// dasher chip section is below .game-content but still inside .host-game. The
+				// ResizeObserver measures the actual rendered size, which should already account
+				// for the dasher chip space, but we need extra buffer for zoom/subpixel issues.
+				const ZOOM_SAFE_PX = 16; // Increased buffer for zoom variations and nested flex layout
+				
 				if (answersContainerEl) {
 					const cs = getComputedStyle(answersContainerEl);
 					const padY =
 						(parseFloat(cs.paddingTop || '0') || 0) + (parseFloat(cs.paddingBottom || '0') || 0);
 					const padX =
 						(parseFloat(cs.paddingLeft || '0') || 0) + (parseFloat(cs.paddingRight || '0') || 0);
+					// More conservative height calculation to prevent cutoff
+					// The ResizeObserver already accounts for parent constraints, but we need
+					// extra safety margin for zoom rounding and nested flex calculations
 					answersContainerHeight = Math.max(0, Math.floor(entry.contentRect.height - padY - ZOOM_SAFE_PX));
 					answersContainerWidth = Math.max(0, Math.floor(entry.contentRect.width - padX));
 				} else {
@@ -692,13 +706,17 @@
 		align-items: center;
 		justify-content: flex-start;
 		min-height: 0;
-		/* IMPORTANT: RevealHost is rendered inside HostGame (which already locks to 16:9).
-		   So size to the parent to avoid bottom clipping when HostGame shows the “dasher” chip. */
-		height: 100%;
+		/* IMPORTANT: RevealHost is rendered inside HostGame's .game-content (flex: 1).
+		   The dasher chip is below .game-content but still inside .host-game.
+		   We need to ensure RevealHost doesn't exceed available space. */
+		flex: 1;
+		min-height: 0; /* Critical for flex children to respect parent constraints */
 		max-height: 100%;
 		max-width: 100%;
 		overflow: hidden; /* No scrolling - everything must fit */
 		position: relative;
+		/* Ensure container respects parent flex constraints */
+		height: 100%;
 	}
 
 	/* Top Header Bar - Fixed at top */
@@ -850,11 +868,13 @@
 		overflow: hidden; /* No scrolling - content must fit */
 		box-sizing: border-box;
 		padding: 0 0.5rem; /* Outer padding */
-		/* Tiny inset so borders don’t get clipped at certain browser zoom levels */
-		padding-bottom: 2px;
+		/* Increased padding to prevent bottom clipping at various zoom levels */
+		padding-bottom: 4px;
 		padding-top: 2px;
-		/* Ensure container doesn't exceed available space */
+		/* Ensure container doesn't exceed available space - be more conservative */
 		max-height: 100%;
+		/* Additional safety: ensure container respects parent constraints */
+		height: 100%;
 	}
 
 	.answers-grid {
@@ -908,8 +928,9 @@
 		column-gap: 0;
 		/* No scrolling - content must fit */
 		overflow: hidden;
-		/* Ensure grid fits within container */
-		max-height: 100%;
+		/* Ensure grid fits within container - be more conservative to prevent cutoff */
+		max-height: calc(100% - 4px); /* Subtract small buffer for zoom safety */
+		height: 100%;
 	}
 
 	/* Real answer wrapper - contains card and meta info */

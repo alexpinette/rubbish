@@ -6,6 +6,24 @@
 :root [data-theme='rubbish'] {
 	--theme-font-family-base: 'Quicksand', sans-serif;
 	--theme-font-family-heading: 'Quicksand', sans-serif;
+	
+	/* Responsive scaling variables - pattern used by successful web games */
+	/* These help maintain consistent proportions across screen sizes */
+	--viewport-scale: min(1, 100vw / 1920); /* Scale factor based on 1920px reference */
+	--content-max-width: min(32rem, 90vw); /* Responsive max width */
+}
+
+/* Adjust scaling variables for different screen sizes */
+@media (min-width: 1920px) {
+	:root [data-theme='rubbish'] {
+		--content-max-width: min(48rem, 90vw);
+	}
+}
+
+@media (min-width: 2560px) {
+	:root [data-theme='rubbish'] {
+		--content-max-width: min(48rem, 75vw);
+	}
 }
 
 @font-face {
@@ -26,9 +44,82 @@
 	font-display: swap;
 }
 
+html {
+	/* Use viewport units for better scaling - pattern used by successful web games */
+	font-size: clamp(14px, 1.5vw, 18px); /* Responsive base font size */
+}
+
 html,
 body {
 	@apply h-full overflow-hidden;
+	/* Prevent horizontal scrolling on all devices */
+	overflow-x: hidden;
+	width: 100%;
+}
+
+/* Ensure host views maintain their aspect ratio and scale properly */
+:global(body:has(.host-lobby)),
+:global(body:has(.host-game)) {
+	overflow: hidden !important;
+}
+
+/* Lock host views to viewport - no scrolling */
+:global(.host-lobby),
+:global(.host-game) {
+	overflow: hidden !important;
+	overscroll-behavior: none;
+}
+
+/* Ensure host views scale properly on very large displays */
+/* Host views use aspect-ratio locking (16:9) which works well for TV displays */
+/* This matches the pattern used by Jackbox.tv for their main display */
+@media (min-width: 2560px) {
+	:global(.host-lobby),
+	:global(.host-game) {
+		/* Constrain to 16:9 aspect ratio, but never exceed viewport */
+		/* This ensures content fits even on ultra-wide displays */
+		max-width: min(calc(100vh * 16 / 9), 100vw);
+		max-height: 100vh;
+	}
+}
+
+/* Prevent scrolling on main content container for player views */
+:global(.app-shell) {
+	height: 100vh;
+	display: flex;
+	flex-direction: column;
+	overflow: hidden;
+}
+
+/* Ensure content area doesn't overflow and can scroll if needed */
+:global(.app-shell > div) {
+	flex: 1;
+	min-height: 0;
+	overflow-y: auto;
+	overflow-x: hidden;
+	/* Smooth scrolling */
+	scroll-behavior: smooth;
+	/* Better scrollbar styling */
+	scrollbar-width: thin;
+	scrollbar-color: rgba(155, 155, 155, 0.5) transparent;
+}
+
+/* Webkit scrollbar styling */
+:global(.app-shell > div::-webkit-scrollbar) {
+	width: 8px;
+}
+
+:global(.app-shell > div::-webkit-scrollbar-track) {
+	background: transparent;
+}
+
+:global(.app-shell > div::-webkit-scrollbar-thumb) {
+	background-color: rgba(155, 155, 155, 0.5);
+	border-radius: 4px;
+}
+
+:global(.app-shell > div::-webkit-scrollbar-thumb:hover) {
+	background-color: rgba(155, 155, 155, 0.7);
 }
 
 .attention {
